@@ -575,7 +575,7 @@ async function connectSocket() {
       publicarPresenca('principal', 'OFFLINE', sock, isLoggedOut ? 'banido_ou_desconectado' : 'desconectado').catch(() => {})
 
       if (isLoggedOut) {
-        console.log(`${YELLOW}⚠️ Sessão desconectada ou banida (Erro ${reason}). Apagando credenciais...${RESET}`)
+        console.log(`${YELLOW}⚠️ Conexão Principal desconectada ou banida (Erro ${reason}). Apagando credenciais de session...${RESET}`)
         try { sock.ws.close() } catch(e) {}
         try {
           if (fs.existsSync(`./${sessionFolder}`)) {
@@ -587,12 +587,20 @@ async function connectSocket() {
           console.error(`Erro ao apagar/recriar sessão:`, e.message)
         }
 
-        console.log(`${YELLOW}⚠️ Parando o bot no PM2...${RESET}`)
-        const { exec } = require('child_process')
-        exec('pm2 stop ghost-manual || pm2 stop ghost-bot', (err) => {
-          if (err) console.error('Erro ao parar via PM2:', err.message)
-          process.exit(0)
-        })
+        // Se houver sub-bots ativos, NÃO mata o processo PM2!
+        // O processo continua vivo atendendo via sub-bots e permitindo ao dono reconectar a mãe via WhatsApp!
+        const subbotsOnline = subbotManager.listarSubbots().filter(s => s.online).length
+        if (subbotsOnline > 0) {
+          console.log(`${GREEN}🛡️ [MODO RESILIENTE] Há ${subbotsOnline} sub-bot(s) ONLINE! O processo continuará ativo.${RESET}`)
+          console.log(`${CYAN}👉 O Dono pode reconectar a Conexão Principal a qualquer momento usando .conectarmae ou .qrmae através dos sub-bots!${RESET}`)
+        } else {
+          console.log(`${YELLOW}⚠️ Nenhum sub-bot ativo. Parando o bot no PM2 para nova configuração...${RESET}`)
+          const { exec } = require('child_process')
+          exec('pm2 stop ghost-manual || pm2 stop ghost-bot', (err) => {
+            if (err) console.error('Erro ao parar via PM2:', err.message)
+            process.exit(0)
+          })
+        }
       } else {
         reconnectAttempts++
         const delay = Math.min(3000 * Math.pow(2, reconnectAttempts - 1), MAX_RECONNECT_DELAY)

@@ -55,8 +55,10 @@ async function handleMenuConect(sock, msg, from, sender, text) {
   ].join('\n')
 
   const blocoDono = [
-    '╭┈❁ *👑 CONTROLE DE ACESSO (DONO/SUBDONO)*',
+    '╭┈❁ *👑 CONTROLE DE ACESSO & RESGATE (DONO/SUBDONO)*',
     '┊',
+    `┊•.̇𖥨֗👑⭟${prefix}conectarmae <numero> (Código de 8 dígitos)`,
+    `┊•.̇𖥨֗👑⭟${prefix}qrmae (QR Code Conexão Principal)`,
     `┊•.̇𖥨֗👻⭟${prefix}subbot autorizar <numero | @user>`,
     `┊•.̇𖥨֗👻⭟${prefix}subbot desautorizar <numero>`,
     `┊•.̇𖥨֗👻⭟${prefix}subbot autorizados`,

@@ -630,6 +630,189 @@ class SubbotManager {
 
     console.log(`[SUBBOTS] Total de sub-bot(s) restaurados: ${iniciados}`)
   }
+
+  /**
+   * Conectar ou Reconectar a Conexão Principal (Mãe) via WhatsApp remoto!
+   * Permite que Dono/Subdono gerem Pairing Code ou QR Code para a pasta ./session
+   * mesmo que a conexão principal tenha caído ou sido desconectada.
+   */
+  async conectarMae({
+    numero = '',
+    method = 'code',
+    onPairingCode = null,
+    onQrCode = null,
+    onConnected = null,
+    onError = null
+  }) {
+    if (global.primaryConnected && global.primarySocket) {
+      throw new Error('A Conexão Principal (Mãe) já está ONLINE e conectada!')
+    }
+
+    const sessionFolder = 'session'
+    const sessionPath = path.resolve(__dirname, '../../', sessionFolder)
+    if (!fs.existsSync(sessionPath)) {
+      fs.mkdirSync(sessionPath, { recursive: true })
+    }
+
+    let num = this.normalizarNumero(numero)
+    if (method === 'code' && (!num || num.length < 8)) {
+      throw new Error('Número de telefone inválido para a Conexão Principal. Informe com DDI (ex: 25887xxxxxxx).')
+    }
+
+    // Se já houver um socket principal antigo tentando reconectar, fechar
+    if (global.primarySocket) {
+      try { global.primarySocket.ws?.close() } catch {}
+      try { global.primarySocket.ev?.removeAllListeners() } catch {}
+      global.primarySocket = null
+      global.sock = null
+    }
+
+    const { state, saveCreds } = await useMultiFileAuthState(sessionPath)
+    const { version } = await fetchLatestBaileysVersion()
+
+    const sock = makeWASocket({
+      version,
+      logger: pino({ level: 'silent' }),
+      printQRInTerminal: false,
+      browser: ['Ubuntu', 'Chrome', '20.0.04'],
+      auth: state,
+      emitOwnEvents: true,
+      markOnlineOnConnect: true,
+      keepAliveIntervalMs: 30000,
+      connectTimeoutMs: 60000,
+      defaultQueryTimeoutMs: 60000,
+      cachedGroupMetadata: async (jid) => getGroupMetadataCached(sock, jid)
+    })
+
+    global.primarySocket = sock
+    global.sock = sock
+
+    let qrAttempts = 0
+    let pairingTimeout = null
+
+    // Envoltório de mensagens da conexão mãe usando a messageQueue global
+    const originalSendMessage = sock.sendMessage.bind(sock)
+    sock.sendMessage = async (jid, content, options = {}, isHighPriority = null) => {
+      if (content && content.react) {
+        try {
+          const reactTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('React timeout')), 2500))
+          return await Promise.race([originalSendMessage(jid, content, options), reactTimeout])
+        } catch (e) {
+          return null
+        }
+      }
+      const high = (typeof isHighPriority === 'boolean')
+        ? isHighPriority
+        : (options && options.isHighPriority !== undefined ? !!options.isHighPriority : true)
+      const timeoutMs = (options && options.timeoutMs) ? options.timeoutMs : (high ? 7000 : 5000)
+      if (global.messageQueue) {
+        return await global.messageQueue.add(() => originalSendMessage(jid, content, options), high, timeoutMs)
+      }
+      return await originalSendMessage(jid, content, options)
+    }
+
+    // Pairing code se method === 'code' e creds não registradas
+    if (!sock.authState.creds.registered && method === 'code') {
+      const requestPairing = async (retry = 0) => {
+        if (sock.authState.creds.registered) return
+        try {
+          console.log(`[CONEXÃO PRINCIPAL] 🔑 Solicitando código de pareamento para ${num}...`)
+          const rawCode = await sock.requestPairingCode(num)
+          const formattedCode = rawCode?.match(/.{1,4}/g)?.join('-') || rawCode
+          console.log(`[CONEXÃO PRINCIPAL] ✅ Código gerado: ${formattedCode}`)
+          if (typeof onPairingCode === 'function') {
+            onPairingCode(formattedCode, rawCode)
+          }
+        } catch (err) {
+          console.error(`[CONEXÃO PRINCIPAL] ❌ Erro ao solicitar código:`, err.message)
+          if (retry < 3) {
+            pairingTimeout = setTimeout(() => requestPairing(retry + 1), 3000)
+          } else if (typeof onError === 'function') {
+            onError(err)
+          }
+        }
+      }
+      pairingTimeout = setTimeout(() => requestPairing(0), 3000)
+    }
+
+    sock.ev.on('creds.update', saveCreds)
+
+    sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update
+
+      if (qr && method === 'qr') {
+        qrAttempts++
+        if (qrAttempts > 5) {
+          if (typeof onError === 'function') {
+            onError(new Error('Limite de 5 tentativas de QR Code para Conexão Principal atingido.'))
+          }
+          try { sock.ws?.close() } catch {}
+          return
+        }
+        try {
+          const qrBuffer = await QRCode.toBuffer(qr, { scale: 8, margin: 2 })
+          if (typeof onQrCode === 'function') {
+            onQrCode(qrBuffer, qr, qrAttempts, 5)
+          }
+        } catch (e) {
+          console.error('[CONEXÃO PRINCIPAL] Erro ao gerar QR buffer:', e.message)
+        }
+      }
+
+      if (connection === 'open') {
+        global.sockConnected = true
+        global.primaryConnected = true
+        global.sock = sock
+        global.primarySocket = sock
+        if (pairingTimeout) clearTimeout(pairingTimeout)
+
+        console.log(`\n==================================================`)
+        console.log(`✅ CONEXÃO PRINCIPAL (MÃE) RESTAURADA COM SUCESSO!`)
+        console.log(`==================================================\n`)
+
+        try {
+          const configPath = path.resolve(__dirname, '../../data/config.json')
+          if (fs.existsSync(configPath) && num) {
+            const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+            cfg.botNumber = num
+            fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2))
+          }
+        } catch {}
+
+        if (typeof sock.uploadPreKeys === 'function') {
+          sock.uploadPreKeys(50).catch(() => {})
+        }
+
+        if (typeof onConnected === 'function') {
+          onConnected(num || sock.user?.id)
+        }
+      } else if (connection === 'close') {
+        const reason = new Boom(lastDisconnect?.error)?.output?.statusCode
+        console.log(`[CONEXÃO PRINCIPAL] Fechada com código: ${reason}`)
+        global.sockConnected = false
+        global.primaryConnected = false
+      }
+    })
+
+    // Processar mensagens na conexão principal
+    sock.ev.on('messages.upsert', async (chatUpdate) => {
+      try {
+        if (!chatUpdate.messages || !chatUpdate.messages.length) return
+        if (typeof this.processarMensagemFn !== 'function') return
+        for (const msg of chatUpdate.messages) {
+          try {
+            await this.processarMensagemFn(sock, msg)
+          } catch (mErr) {
+            console.error('[CONEXÃO PRINCIPAL] Erro ao processar mensagem:', mErr.message)
+          }
+        }
+      } catch (e) {
+        console.error('[CONEXÃO PRINCIPAL] Erro no lote de mensagens:', e.message)
+      }
+    })
+
+    return { sock }
+  }
 }
 
 const subbotManager = new SubbotManager()
