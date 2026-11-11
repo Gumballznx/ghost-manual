@@ -2,6 +2,7 @@ const config = require('../../../data/config.json')
 const { isOwnerCheck, isSubdonoCheck } = require('../../utils/baileys')
 const { loadGroupConfig, saveGroupConfig } = require('../../utils/configManager')
 const { resolveTargetGroup } = require('../../utils/groupResolver')
+const { getTimestampMocambique } = require('../../utils/timezone')
 
 function parseTempo(str) {
     if (!str) return null
@@ -146,7 +147,8 @@ const handler = async function (sock, msg, from, sender, text) {
     const allGroups = loadGroupConfig() || {}
     const cfg = allGroups[targetJid] || allGroups[targetJid.replace(/\./g, '___dot___')] || allGroups[targetJid.replace(/___dot___/g, '.')] || {}
 
-    const agora = Date.now()
+    // expiraEm usa o mesmo relógio de Moçambique (UTC+2) que o verificador de expiração
+    const agora = getTimestampMocambique()
 
     if (ms === 0) {
         cfg.authorized = false

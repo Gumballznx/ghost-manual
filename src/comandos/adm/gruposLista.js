@@ -1,6 +1,7 @@
 const config = require('../../../data/config.json')
 const { isOwnerCheck, isSubdonoCheck } = require('../../utils/baileys')
 const { getAuthorizedGroupsList } = require('../../utils/groupResolver')
+const { getTimestampMocambique } = require('../../utils/timezone')
 
 module.exports = async function(sock, msg, from, sender, text) {
     const cmd = text.trim().toLowerCase().split(/\s+/)[0]
@@ -23,8 +24,9 @@ module.exports = async function(sock, msg, from, sender, text) {
     let txt = '👥 *GRUPOS AUTORIZADOS*\n────────────────────────\n'
     txt += '📊 *Total de Grupos:* ' + groups.length + '\n\n'
 
+    const agoraMz = getTimestampMocambique()
     groups.forEach((g) => {
-        const validade = g.cfg.expiraEm ? ('Expira em ' + Math.max(0, Math.floor((g.cfg.expiraEm - Date.now()) / (24 * 3600 * 1000))) + 'd') : 'Vitalício'
+        const validade = g.cfg.expiraEm ? ('Expira em ' + Math.max(0, Math.floor((g.cfg.expiraEm - agoraMz) / (24 * 3600 * 1000))) + 'd') : 'Vitalício'
 
         txt += '*' + g.index + '️⃣ ' + g.name + '*\n'
         txt += '   ├ 🆔 *ID:* `' + g.id + '`\n'

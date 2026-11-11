@@ -4,12 +4,7 @@ const config = require(path.join(__dirname, '../../../data/config.json'))
 const { isOwnerCheck } = require('../../utils/baileys')
 const configManager = require('../../utils/configManager')
 
-function getDataMocambique() {
-    const now = new Date()
-    const offset = 2 * 60
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000)
-    return new Date(utc + (offset * 60000))
-}
+const { getDataMocambique } = require('../../utils/timezone')
 
 function parseTempo(str) {
     const match = str.match(/^(\d+)\s*(s|seg|segundo|segundos|min|minuto|minutos|h|hora|horas|d|dia|dias|mes|meses|a|ano|anos)?$/i)

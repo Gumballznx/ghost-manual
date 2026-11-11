@@ -1037,7 +1037,7 @@ module.exports = async function (sock, msg) {
   }
 
   if (text === config.prefix + 'github') {
-    await sock.sendMessage(from, { text: `🔗 *GitHub Oficial*\n\nAcesse: https://github.com/Gumballxnz/` }, { quoted: msg })
+    await sock.sendMessage(from, { text: `🔗 *GitHub Oficial*\n\nAcesse: https://github.com/Gumballznx/` }, { quoted: msg })
     return
   }
 

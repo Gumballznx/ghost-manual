@@ -607,6 +607,10 @@ class SubbotManager {
       this.setProcessarMensagemFn(processarMensagemFn)
     }
 
+    // Restaurar sessões só uma vez por processo, para não abrir sockets duplicados
+    if (this.subbotsRestaurados) return
+    this.subbotsRestaurados = true
+
     console.log('[SUBBOTS] 🔍 Verificando sub-bots salvos para inicialização...')
     const salvos = Object.values(this.dados.subbots || {})
     let iniciados = 0
@@ -765,6 +769,8 @@ class SubbotManager {
         global.sock = sock
         global.primarySocket = sock
         if (pairingTimeout) clearTimeout(pairingTimeout)
+        // A fila global fica pausada desde a queda da conexão principal; liberar envios
+        if (global.messageQueue) global.messageQueue.resume()
 
         console.log(`\n==================================================`)
         console.log(`✅ CONEXÃO PRINCIPAL (MÃE) RESTAURADA COM SUCESSO!`)
@@ -791,6 +797,10 @@ class SubbotManager {
         console.log(`[CONEXÃO PRINCIPAL] Fechada com código: ${reason}`)
         global.sockConnected = false
         global.primaryConnected = false
+        if (global.messageQueue) {
+          global.messageQueue.flush()
+          global.messageQueue.pause()
+        }
       }
     })
 

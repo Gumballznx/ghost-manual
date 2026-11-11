@@ -67,7 +67,7 @@ const menuPrefixHandler = async (sock, msg, from, sender, text) => {
 
     const blocoGithub = [
         '╭┈❁ 🐙 *GITHUB*',
-        '┊•.̇𖥨֗💻⭟ github.com/Gumballxnz/ghost-manual',
+        '┊•.̇𖥨֗💻⭟ github.com/Gumballznx/ghost-manual',
         '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
     ].join('\n')
 

@@ -1,11 +1,24 @@
 let firebaseUrl = ''
+let firebaseAuth = ''
 
 try {
     const config = require('../../data/config.json')
     if (config && config.firebaseUrl && !config.firebaseUrl.includes('seu-projeto')) {
         firebaseUrl = String(config.firebaseUrl).trim()
     }
+    if (config && config.firebaseAuth) {
+        firebaseAuth = String(config.firebaseAuth).trim()
+    }
 } catch {}
+
+// A variável de ambiente tem prioridade sobre o config.json (evita deixar o segredo em arquivo)
+if (process.env.FIREBASE_AUTH) {
+    firebaseAuth = String(process.env.FIREBASE_AUTH).trim()
+}
+
+if (firebaseUrl && !firebaseAuth) {
+    console.warn('[FIREBASE] ⚠️ firebaseAuth não definido: as requisições vão sem autenticação. As regras do banco precisam estar abertas, o que permite que qualquer pessoa com a URL leia e altere os dados. Defina "firebaseAuth" no config.json ou a variável FIREBASE_AUTH.')
+}
 
 firebaseUrl = firebaseUrl.replace(/\/+$/, '')
 const firebaseHost = firebaseUrl.replace(/^https?:\/\//, '')
@@ -21,13 +34,27 @@ const httpsAgent = new https.Agent({
 
 function buildFirebaseUrl(path) {
     let cleanPath = (path || '').replace(/^\/+/, '')
-    let query = ''
+    const params = new URLSearchParams()
     if (cleanPath.includes('?')) {
-        const parts = cleanPath.split('?')
-        cleanPath = parts[0]
-        query = '?' + parts[1]
+        const idx = cleanPath.indexOf('?')
+        for (const [k, v] of new URLSearchParams(cleanPath.slice(idx + 1))) params.append(k, v)
+        cleanPath = cleanPath.slice(0, idx)
     }
-    return `${firebaseUrl}/${cleanPath}.json${query}`
+    if (firebaseAuth) params.set('auth', firebaseAuth)
+    const query = params.toString()
+    return `${firebaseUrl}/${cleanPath}.json${query ? '?' + query : ''}`
+}
+
+// Só aceita respostas 2xx que não sejam um objeto de erro do Firebase.
+// Sem isso, um {"error":"Permission denied"} viraria "dado" e sobrescreveria o backup local.
+function parseFirebaseResponse(statusCode, body) {
+    if (statusCode < 200 || statusCode >= 300) return { ok: false, error: `HTTP ${statusCode}` }
+    let data
+    try { data = JSON.parse(body) } catch { return { ok: false, error: 'JSON inválido' } }
+    if (data && typeof data === 'object' && !Array.isArray(data) && typeof data.error === 'string' && Object.keys(data).length === 1) {
+        return { ok: false, error: data.error }
+    }
+    return { ok: true, data }
 }
 
 function fetchFirebase(path, isRetry = false) {
@@ -38,7 +65,12 @@ function fetchFirebase(path, isRetry = false) {
             let d = ''
             r.on('data', c => d += c)
             r.on('end', () => {
-                try { res(JSON.parse(d)) } catch { res(null) }
+                const parsed = parseFirebaseResponse(r.statusCode, d)
+                if (!parsed.ok) {
+                    console.error('[GET_ERROR]', String(path).split('?')[0], parsed.error)
+                    return res(null)
+                }
+                res(parsed.data)
             })
         })
         req.on('error', (err) => {
@@ -160,6 +192,7 @@ function deleteFirebase(path) {
 module.exports = {
     FIREBASE_DB_URL: firebaseUrl,
     FIREBASE_HOST: firebaseHost,
+    FIREBASE_AUTH_ENABLED: !!firebaseAuth,
     httpsAgent,
     buildFirebaseUrl,
     fetchFirebase,

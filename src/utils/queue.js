@@ -6,12 +6,18 @@ class MessageQueue {
         this.minDelay = minDelay
         this.activeWorkers = 0
         this.maxRetries = 2
-        this.paused = false
+        this.paused = false      // pausa por desconexão (pause/resume)
+        this.throttled = false   // pausa temporária por rate-limit
         this.throttleTimer = null
     }
 
     async add(fn, isHighPriority = true, timeoutMs = 10000) {
         return new Promise((resolve, reject) => {
+            // Desconectado: falha na hora em vez de deixar a mensagem presa até uma reconexão
+            if (this.paused) {
+                reject(new Error('Conexão perdida, mensagem descartada'))
+                return
+            }
             const item = { fn, resolve, reject, retries: 0, isHighPriority, timeoutMs }
             if (isHighPriority) {
                 this.highPriorityQueue.push(item)
@@ -37,6 +43,7 @@ class MessageQueue {
 
     resume() {
         this.paused = false
+        this.throttled = false
         if (this.throttleTimer) {
             clearTimeout(this.throttleTimer)
             this.throttleTimer = null
@@ -45,10 +52,12 @@ class MessageQueue {
     }
 
     dispatch() {
-        while (this.activeWorkers < this.concurrency && (this.highPriorityQueue.length > 0 || (!this.paused && this.normalQueue.length > 0))) {
+        // Pausado (desconexão) ou em throttle (rate-limit): nada sai, nem prioridade alta
+        if (this.paused || this.throttled) return
+        while (this.activeWorkers < this.concurrency && (this.highPriorityQueue.length > 0 || this.normalQueue.length > 0)) {
             const item = this.highPriorityQueue.length > 0
                 ? this.highPriorityQueue.shift()
-                : (!this.paused ? this.normalQueue.shift() : null)
+                : this.normalQueue.shift()
             if (!item) break
 
             this.activeWorkers++
@@ -86,9 +95,9 @@ class MessageQueue {
                 console.log(`[QUEUE] ⚠️ Rate-limit detectado. Reagendando mensagem (${retries + 1}/${this.maxRetries}) em ${Math.round(backoffMs)}ms...`)
 
                 if (!this.throttleTimer) {
-                    this.paused = true
+                    this.throttled = true
                     this.throttleTimer = setTimeout(() => {
-                        this.paused = false
+                        this.throttled = false
                         this.throttleTimer = null
                         this.dispatch()
                     }, backoffMs)

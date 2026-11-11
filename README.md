@@ -1,11 +1,15 @@
 # 👻 GhostBot Manual
 
-[![npm version](https://img.shields.io/badge/npm-v1.0.0-cb3837.svg)](https://github.com/Gumballxnz/ghost-manual/packages)
+[![npm version](https://img.shields.io/badge/npm-v1.0.0-cb3837.svg)](https://github.com/Gumballznx/ghost-manual/packages)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-v18+-green.svg)](https://nodejs.org/)
 [![Baileys](https://img.shields.io/badge/Baileys-v6.7+-blue.svg)](https://github.com/WhiskeySockets/Baileys)
 
 > **Bot profissional de moderação de grupos e gestão manual de megas/saldo no WhatsApp**, construído com a biblioteca [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys).
+
+<p align="center">
+  <img src="assets/menuadm.jpg" alt="Menu de administração do GhostBot" width="100%">
+</p>
 
 ---
 
@@ -36,7 +40,7 @@ npx @gumballxnz/ghost-manual --pair 25887xxxxxxx
 
 Ou diretamente a partir do GitHub:
 ```bash
-npx github:Gumballxnz/ghost-manual --qr
+npx github:Gumballznx/ghost-manual --qr
 ```
 
 ---
@@ -48,7 +52,7 @@ npx github:Gumballxnz/ghost-manual --qr
 No seu terminal ou VPS recém-criada, basta clonar o repositório, instalar as dependências e iniciar o assistente:
 
 ```bash
-git clone https://github.com/Gumballxnz/ghost-manual.git
+git clone https://github.com/Gumballznx/ghost-manual.git
 cd ghost-manual
 npm install
 npm run setup
@@ -83,6 +87,19 @@ Edite `data/config.json` com suas preferências:
   "botaoExtra": "Sobre o bot"
 }
 ```
+
+#### (Opcional) Sincronizar dados com o Firebase
+
+Por padrão os dados ficam só na pasta `data/`. Para sincronizar com o Firebase Realtime Database, adicione ao `data/config.json`:
+
+```json
+{
+  "firebaseUrl": "https://SEU-PROJETO-default-rtdb.firebaseio.com",
+  "firebaseAuth": "SEU_TOKEN_OU_DATABASE_SECRET"
+}
+```
+
+> ⚠️ **Não deixe o banco aberto.** Sem `firebaseAuth`, as regras do banco precisam permitir leitura e escrita públicas, e qualquer pessoa com a URL consegue ler e alterar licenças, carteiras e recibos. Gere um *Database secret* em **Configurações do projeto → Contas de serviço → Chaves secretas do banco de dados**, coloque em `firebaseAuth` (ou na variável de ambiente `FIREBASE_AUTH`) e defina as regras como `{ "rules": { ".read": false, ".write": false } }`.
 
 #### 2. Conectar a Sessão
 ```bash
@@ -122,7 +139,7 @@ Você pode rodar o bot diretamente no seu celular Android usando o aplicativo **
    ```
 2. **Clone e instale as dependências:**
    ```bash
-   git clone https://github.com/Gumballxnz/ghost-manual.git
+   git clone https://github.com/Gumballznx/ghost-manual.git
    cd ghost-manual
    npm install
    ```
@@ -217,4 +234,4 @@ Para quem hospeda na **Lunes.host**, SquareCloud ou qualquer servidor baseado no
 
 Distribuído sob a licença **MIT**. Consulte o arquivo [LICENSE](LICENSE) para obter mais informações.
 
-Desenvolvido por **[Gumballwotersan](https://github.com/Gumballxnz)**.
+Desenvolvido por **[Gumballwotersan](https://github.com/Gumballznx)**.

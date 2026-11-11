@@ -206,7 +206,9 @@ function isSubdonoCheck(sender) {
 }
 
 function isLeaderCheck(sender, msg = null) {
-  if (msg && msg.key && msg.key.fromMe) {
+  // Mensagens enviadas pelo próprio número só valem como Dono na conexão PRINCIPAL.
+  // Num sub-bot, o "próprio número" é o do revendedor, que não pode herdar poderes de Dono.
+  if (msg && msg.key && msg.key.fromMe && !msg._viaSubbot) {
     return true
   }
   if (!sender) return false

@@ -11,12 +11,7 @@ try {
     config = { prefix: '.' };
 }
 
-function getDataMocambique() {
-    const now = new Date();
-    const offset = 2 * 60;
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-    return new Date(utc + (offset * 60000));
-}
+const { getDataMocambique } = require('../../utils/timezone');
 
 function parseTempo(str) {
     if (!str) return null;

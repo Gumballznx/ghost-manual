@@ -228,7 +228,9 @@ global.messageQueue = messageQueue
 global.messageQueues = queues
 global.resetAllQueues = () => {
   try {
-    messageQueue.queue = []
+    // flush() esvazia as duas filas (alta e normal) e rejeita as promessas pendentes,
+    // para quem estava aguardando o envio não ficar preso para sempre.
+    messageQueue.flush()
     console.log('[RESET] Fila interna de mensagens limpa com sucesso!')
   } catch (e) {
     console.error('[RESET] Erro ao resetar fila interna:', e.message)
@@ -245,9 +247,34 @@ let primeiraConexaoDoProcesso = true
 const MAX_RECONNECT_DELAY = 30000
 let chosenMethod = null
 let pairingTimeout = null
+let reconnectTimer = null
+
+// Agenda UMA reconexão do socket principal. Chamadas repetidas enquanto já existe
+// uma agendada são ignoradas, evitando dois sockets na mesma sessão.
+function agendarReconexao(delayMs) {
+  if (reconnectTimer) return false
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    if (global.primaryConnected) return
+    connectSocket().catch(err => {
+      console.error('[RECONNECT] Erro ao reconectar:', err.message)
+    })
+  }, delayMs)
+  return true
+}
 
 async function processarMensagemIndividual(sock, msg) {
   if (!msg || !msg.message) return
+
+  // Marca mensagens que chegaram por um sub-bot (qualquer socket que não seja o principal).
+  // Usado por isLeaderCheck para não tratar fromMe de sub-bot como Dono. Não enumerável
+  // para não ser gravado junto se a mensagem for serializada.
+  Object.defineProperty(msg, '_viaSubbot', {
+    value: !!sock && sock !== global.primarySocket,
+    enumerable: false,
+    configurable: true,
+    writable: true
+  })
 
   if (msg.key?.id && botOutgoingMessageIds.has(msg.key.id)) {
     return
@@ -291,12 +318,12 @@ async function processarMensagemIndividual(sock, msg) {
   }
 
   const isBotResponseAlert = /Pagamento Não Confirmado|NÚMERO DE DESTINO NÃO AUTORIZADO|RECIBO JÁ UTILIZADO|COMPROVANTE ARQUIVADO|Depósito confirmado|FORMAS DE PAGAMENTO|GRUPO SEM CONTAS|SMS ainda não recebido|Não consegui ler o valor/i.test(bodyCheck)
-  if (msg.key.fromMe && isBotResponseAlert) return
+  if (msg.key?.fromMe && isBotResponseAlert) return
 
   const isComprovanteCheck = /^(?:Confirmado|ID da transacao|ID\s*Trans|Transaction ID|Transferiste|You transfered)/i.test(bodyCheck.trim()) ||
                              /(?:Transferiste|You transfered)\s+[\d.,]+\s*MT/i.test(bodyCheck)
   const hasMediaMsg = !!(msg.message?.imageMessage || msg.message?.documentMessage)
-  if (msg.key.fromMe && !bodyCheck.startsWith(config.prefix) && !isComprovanteCheck && !hasMediaMsg) return
+  if (msg.key?.fromMe && !bodyCheck.startsWith(config.prefix) && !isComprovanteCheck && !hasMediaMsg) return
 
   async function marcarComoLida(s, key) {
     if (!s || !key || key.fromMe) return
@@ -342,6 +369,11 @@ async function processarMensagemIndividual(sock, msg) {
 
 async function connectSocket() {
   const sessionFolder = 'session'
+
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
 
   if (pairingTimeout) {
     clearTimeout(pairingTimeout)
@@ -604,8 +636,9 @@ async function connectSocket() {
       } else {
         reconnectAttempts++
         const delay = Math.min(3000 * Math.pow(2, reconnectAttempts - 1), MAX_RECONNECT_DELAY)
-        console.log(`${YELLOW}🔄 Tentando reconectar em ${Math.round(delay/1000)}s... (tentativa ${reconnectAttempts})${RESET}`)
-        setTimeout(() => connectSocket(), delay)
+        if (agendarReconexao(delay)) {
+          console.log(`${YELLOW}🔄 Tentando reconectar em ${Math.round(delay/1000)}s... (tentativa ${reconnectAttempts})${RESET}`)
+        }
       }
     }
   })
@@ -852,21 +885,20 @@ async function connectSocket() {
   sock.ev.on("creds.update", saveCreds)
 }
 
+// Não reinicia o bot inteiro aqui: chamar iniciarBots() de novo duplicava o preload,
+// os sub-bots e os sockets. O erro é registrado e o processo segue; se o socket
+// principal caiu, o handler de 'close' já cuida da reconexão.
 process.on('uncaughtException', (err) => {
-  console.error('[FATAL] Exceção não capturada:', err.message)
-  setTimeout(() => iniciarBots(), 5000)
+  console.error('[FATAL] Exceção não capturada:', err?.stack || err?.message || err)
 })
 
 process.on('unhandledRejection', (reason) => {
   if (reason?.message?.includes('Conexão perdida')) return
   console.error('[WARN] Promise rejeitada:', reason?.message || reason)
   if (reason?.message?.includes('Connection Closed') || reason?.output?.statusCode === 428) {
-    console.log('[AUTO-RECONNECT] Conexão Baileys perdida no background. Agendando reconexão limpa...')
-    setTimeout(() => {
-      if (!global.sockConnected) {
-        connectSocket()
-      }
-    }, 3000)
+    if (!global.primaryConnected && fs.existsSync('./session/creds.json') && agendarReconexao(3000)) {
+      console.log('[AUTO-RECONNECT] Conexão Baileys perdida no background. Agendando reconexão limpa...')
+    }
   }
 })
 
@@ -890,11 +922,11 @@ async function iniciarBots() {
 
   if (temSessaoPrincipal) {
     console.log(`[START] Sessão anterior encontrada. Iniciando bot PRINCIPAL online...`)
-    connectSocket()
+    connectSocket().catch(err => console.error('[START] Erro ao conectar PRINCIPAL:', err.message))
   } else {
     console.log(`[START] Nenhuma sessão ativa para PRINCIPAL.`)
     if (process.stdin.isTTY) {
-      connectSocket()
+      connectSocket().catch(err => console.error('[START] Erro ao conectar PRINCIPAL:', err.message))
     } else {
       console.log(`[START] Execute via terminal para parear: node index.js --pair <numero> ou node index.js --qr`)
     }

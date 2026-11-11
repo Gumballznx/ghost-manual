@@ -23,12 +23,7 @@ function parseTempoMs(str) {
     return valor * DIA
 }
 
-function getDataMocambique() {
-    const now = new Date()
-    const offset = 2 * 60
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000)
-    return new Date(utc + (offset * 60000))
-}
+const { getDataMocambique } = require('../../utils/timezone')
 
 module.exports = async function (sock, msg, from, sender, text) {
     const prefix = config.prefix

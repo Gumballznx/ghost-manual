@@ -50,7 +50,7 @@ module.exports = async (sock, msg, from, sender = null, options = {}) => {
 
     const blocoGithub = [
         '╭┈❁ 🐙 *GITHUB*',
-        '┊•.̇𖥨֗💻⭟ github.com/Gumballxnz/ghost-manual',
+        '┊•.̇𖥨֗💻⭟ github.com/Gumballznx/ghost-manual',
         '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
     ].join('\n')
 
