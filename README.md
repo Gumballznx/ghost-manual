@@ -95,11 +95,17 @@ Por padrão os dados ficam só na pasta `data/`. Para sincronizar com o Firebase
 ```json
 {
   "firebaseUrl": "https://SEU-PROJETO-default-rtdb.firebaseio.com",
-  "firebaseAuth": "SEU_TOKEN_OU_DATABASE_SECRET"
+  "firebaseServiceAccount": "/caminho/para/firebase-adminsdk.json"
 }
 ```
 
-> ⚠️ **Não deixe o banco aberto.** Sem `firebaseAuth`, as regras do banco precisam permitir leitura e escrita públicas, e qualquer pessoa com a URL consegue ler e alterar licenças, carteiras e recibos. Gere um *Database secret* em **Configurações do projeto → Contas de serviço → Chaves secretas do banco de dados**, coloque em `firebaseAuth` (ou na variável de ambiente `FIREBASE_AUTH`) e defina as regras como `{ "rules": { ".read": false, ".write": false } }`.
+O bot autentica-se com uma **conta de serviço** do Google: assina um pedido com a chave da conta e recebe um token de acesso (válido 1 h, renovado sozinho), que vai em cada pedido ao banco. Para obter o ficheiro: **Consola do Firebase → Configurações do projeto → Contas de serviço → Gerar nova chave privada**. Também pode indicar o caminho na variável de ambiente `FIREBASE_SERVICE_ACCOUNT`.
+
+> ⚠️ **O ficheiro da conta de serviço é uma chave de administrador.** Guarde-o só no servidor (permissões `600`) e nunca o envie para o Git: o `.gitignore` já bloqueia `*firebase-adminsdk*.json`.
+>
+> ⚠️ **Não deixe o banco aberto.** Sem autenticação, as regras do banco precisam permitir leitura e escrita públicas, e qualquer pessoa com a URL consegue ler e alterar licenças, carteiras e recibos. Com a conta de serviço o bot funciona mesmo com as regras fechadas.
+>
+> Alternativa antiga: `firebaseAuth` (ou `FIREBASE_AUTH`) com um *Database secret*. A Google já não recomenda esses segredos; prefira a conta de serviço.
 
 #### 2. Conectar a Sessão
 ```bash

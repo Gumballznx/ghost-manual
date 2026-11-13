@@ -304,7 +304,7 @@ module.exports = async (sock, msg, from, sender, text) => {
       const sb = lista[i]
       const statusIcon = sb.online ? '🟢 Online' : (sb.status === 'pareando' ? '🟡 Pareando' : '🔴 Offline')
       const qtdGrupos = sb.grupos ? sb.grupos.length : 0
-      linhas.push(`┊•.̇𖥨֗📱⭟ *Sub-Bot #${i + 1}:* +${sb.numero}`)
+      linhas.push(`┊•.̇𖥨֗📱⭟ *Sub-Bot #${i + 1}:* ${subbotManager.rotulo(sb.numero)}`)
       linhas.push(`┊      Status: *${statusIcon}*`)
       linhas.push(`┊      Grupos atendidos: *${qtdGrupos}*`)
       linhas.push('┊')
@@ -385,6 +385,22 @@ module.exports = async (sock, msg, from, sender, text) => {
       const ehDele = meus.some(s => s.numero === numLimpo)
       if (!ehDele) {
         await sock.sendMessage(from, { text: '⛔ Você só pode vincular grupos aos seus próprios sub-bots.' }, { quoted: msg })
+        return true
+      }
+    }
+
+    // O número do sub-bot precisa estar no grupo, senão o grupo ficaria sem resposta
+    const ativo = subbotManager.getSubbotPorNumero(numLimpo)
+    if (ativo?.sock && ativo.status === 'online') {
+      let participa = false
+      try {
+        const meta = await ativo.sock.groupMetadata(from)
+        participa = !!meta?.participants?.length
+      } catch {}
+      if (!participa) {
+        await sock.sendMessage(from, {
+          text: `❌ *O número +${numLimpo} não está neste grupo.*\nAdicione o número do sub-bot ao grupo e tente de novo.`
+        }, { quoted: msg })
         return true
       }
     }
@@ -484,7 +500,7 @@ async function listarGruposSessoes(sock, msg, from, sender, args, isOwnerOrSubdo
       const statusIcon = active?.status === 'online' ? '🟢 Online' : (sb.status === 'pareando' ? '🟡 Pareando' : '🔴 Offline')
       const grupos = sb.grupos || []
 
-      linhas.push(`┊📱 *Sessão: +${sb.numero}* [${statusIcon}]`)
+      linhas.push(`┊📱 *Sessão: ${subbotManager.rotulo(sb.numero)}* [${statusIcon}]`)
       if (sb.criadoPor) {
         const criadorClean = String(sb.criadoPor).split('@')[0].split(':')[0]
         linhas.push(`┊👤 *Criador:* wa.me/${criadorClean}`)
@@ -551,7 +567,7 @@ async function listarGruposSessoes(sock, msg, from, sender, args, isOwnerOrSubdo
     const statusIcon = active?.status === 'online' ? '🟢 Online' : '🔴 Offline'
     const grupos = sb.grupos || []
 
-    linhas.push(`┊📱 *Sua Sessão:* +${sb.numero} [${statusIcon}]`)
+    linhas.push(`┊📱 *Sua Sessão:* ${subbotManager.rotulo(sb.numero)} [${statusIcon}]`)
     linhas.push(`┊📂 *Total de Grupos Vinculados:* ${grupos.length}`)
     linhas.push('┊')
 
@@ -642,7 +658,7 @@ async function executarConexaoSubbot(sock, msg, from, sender, rawNumber, prefix)
       onConnected: async (num) => {
         try {
           await sock.sendMessage(from, {
-            text: `🎉 *SUB-BOT CONECTADO COM SUCESSO!*\n\n📱 Chip: *+${num}*\n✅ Pronto para responder comandos e atender o grupo!`
+            text: `🎉 *SUB-BOT CONECTADO COM SUCESSO!*\n\n📱 Chip: *+${num}*\n🔗 Ele ainda não atende nenhum grupo.\n💡 Em cada grupo onde ele deve atender, envie: \`${prefix}subbot vincular ${num}\``
           })
         } catch {}
       },
