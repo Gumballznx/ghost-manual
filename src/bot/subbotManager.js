@@ -33,13 +33,25 @@ class SubbotManager {
   carregarDados() {
     try {
       if (!fs.existsSync(DATA_FILE)) {
-        this.dados = { subbots: {}, autorizados: [] }
+        this.dados = { subbots: {}, autorizados: [], versaoVinculo: 2 }
         this.salvarDados()
       } else {
         const raw = fs.readFileSync(DATA_FILE, 'utf8')
         this.dados = JSON.parse(raw)
         if (!this.dados.subbots) this.dados.subbots = {}
         if (!Array.isArray(this.dados.autorizados)) this.dados.autorizados = []
+
+        // Migração única: até aqui o sub-bot se vinculava sozinho a TODOS os grupos do
+        // número ao conectar. Esses vínculos automáticos são descartados; o dono da
+        // conexão escolhe de novo os grupos com .subbot vincular.
+        if (this.dados.versaoVinculo !== 2) {
+          for (const sb of Object.values(this.dados.subbots)) {
+            if (sb && typeof sb === 'object') sb.grupos = []
+          }
+          this.dados.versaoVinculo = 2
+          this.salvarDados()
+          console.log('[SUBBOTS] Vínculos automáticos de grupos limpos; use .subbot vincular para escolher os grupos.')
+        }
       }
     } catch (e) {
       console.error('[SUBBOTS] Erro ao carregar subbots.json:', e.message)
@@ -187,6 +199,9 @@ class SubbotManager {
 
   vincularGrupo(numero, groupId) {
     const num = this.normalizarNumero(numero)
+    // Se o grupo estava com outro sub-bot, solta antes de vincular a este
+    const anterior = this.groupToSubbot.get(groupId)
+    if (anterior && anterior !== num) this.desvincularGrupo(groupId)
     if (!this.dados.subbots[num]) {
       this.dados.subbots[num] = {
         numero: num,
@@ -281,7 +296,9 @@ class SubbotManager {
       this.dados.subbots[num] = {
         numero: num,
         sessao: path.basename(sessionPath),
-        grupos: grupoId ? [grupoId] : [],
+        // Conectar NÃO vincula grupo nenhum: o dono da conexão escolhe depois,
+        // com .subbot vincular, em quais grupos o sub-bot atende.
+        grupos: [],
         criadoEm: Date.now(),
         criadoPor: autorJid,
         ativo: true,
@@ -291,15 +308,9 @@ class SubbotManager {
       this.dados.subbots[num].ativo = true
       this.dados.subbots[num].sessao = path.basename(sessionPath)
       this.dados.subbots[num].status = method === 'qr' ? 'aguardando_qr' : 'pareando'
-      if (grupoId && !this.dados.subbots[num].grupos.includes(grupoId)) {
-        this.dados.subbots[num].grupos.push(grupoId)
-      }
     }
     this.salvarDados()
 
-    if (grupoId) {
-      this.groupToSubbot.set(grupoId, num)
-    }
 
     // Se já havia um socket antigo aberto, fecha de forma limpa
     const anterior = this.activeSubbots.get(num)
@@ -472,22 +483,12 @@ class SubbotManager {
         console.log(`🎉 [SUBBOT CONECTADO] Sub-Bot +${num} está ONLINE!`)
         console.log(`==================================================\n`)
 
-        // Sincronizar grupos participantes
-        try {
-          const groups = await sock.groupFetchAllParticipating()
-          const gids = Object.keys(groups || {})
-          for (const gid of gids) {
-            if (!subbotEntry.grupos.includes(gid)) {
-              subbotEntry.grupos.push(gid)
-            }
-            this.groupToSubbot.set(gid, num)
-          }
-          if (this.dados.subbots[num]) {
-            this.dados.subbots[num].grupos = subbotEntry.grupos
-            this.salvarDados()
-          }
-        } catch (e) {
-          console.warn(`[SUBBOT ${num}] Aviso ao carregar grupos:`, e.message)
+        // Restaurar SÓ os grupos que o dono da conexão vinculou (.subbot vincular).
+        // Antes, todos os grupos em que o número participava eram vinculados sozinhos.
+        const gruposVinculados = this.dados.subbots[num]?.grupos || subbotEntry.grupos || []
+        subbotEntry.grupos = [...gruposVinculados]
+        for (const gid of subbotEntry.grupos) {
+          this.groupToSubbot.set(gid, num)
         }
 
         // Upload de pre-keys
@@ -502,14 +503,6 @@ class SubbotManager {
           onConnected(num)
         }
 
-        // Avisa no grupo solicitante se configurado
-        if (subbotEntry.grupoSolicitante) {
-          try {
-            await sock.sendMessage(subbotEntry.grupoSolicitante, {
-              text: `🎉 *SUB-BOT CONECTADO COM SUCESSO!*\n\n📱 *Número:* ${this.rotulo(num)}\n🤖 A partir de agora, as respostas deste grupo serão enviadas por este número.`
-            })
-          } catch {}
-        }
       } else if (connection === 'close') {
         const reason = new Boom(lastDisconnect?.error)?.output?.statusCode
         const reasonName = Object.entries(DisconnectReason).find(([key, value]) => value === reason)?.[0] || 'UNKNOWN'
@@ -625,6 +618,10 @@ class SubbotManager {
         if (typeof this.processarMensagemFn !== 'function') return
 
         for (const msg of chatUpdate.messages) {
+          // Em grupo, o sub-bot só atende onde foi vinculado; nos demais quem responde
+          // é o bot principal (evita respostas duplicadas e atendimento não autorizado).
+          const jid = msg?.key?.remoteJid || ''
+          if (jid.endsWith('@g.us') && this.groupToSubbot.get(jid) !== num) continue
           try {
             await this.processarMensagemFn(sock, msg)
           } catch (mErr) {

@@ -389,6 +389,22 @@ module.exports = async (sock, msg, from, sender, text) => {
       }
     }
 
+    // O número do sub-bot precisa estar no grupo, senão o grupo ficaria sem resposta
+    const ativo = subbotManager.getSubbotPorNumero(numLimpo)
+    if (ativo?.sock && ativo.status === 'online') {
+      let participa = false
+      try {
+        const meta = await ativo.sock.groupMetadata(from)
+        participa = !!meta?.participants?.length
+      } catch {}
+      if (!participa) {
+        await sock.sendMessage(from, {
+          text: `❌ *O número +${numLimpo} não está neste grupo.*\nAdicione o número do sub-bot ao grupo e tente de novo.`
+        }, { quoted: msg })
+        return true
+      }
+    }
+
     subbotManager.vincularGrupo(numLimpo, from)
     await sock.sendMessage(from, {
       text: `✅ *Grupo Vinculado!*\n\n📱 Sub-Bot: *+${numLimpo}*\nEste grupo agora é atendido por este sub-bot.`
@@ -642,7 +658,7 @@ async function executarConexaoSubbot(sock, msg, from, sender, rawNumber, prefix)
       onConnected: async (num) => {
         try {
           await sock.sendMessage(from, {
-            text: `🎉 *SUB-BOT CONECTADO COM SUCESSO!*\n\n📱 Chip: *+${num}*\n✅ Pronto para responder comandos e atender o grupo!`
+            text: `🎉 *SUB-BOT CONECTADO COM SUCESSO!*\n\n📱 Chip: *+${num}*\n🔗 Ele ainda não atende nenhum grupo.\n💡 Em cada grupo onde ele deve atender, envie: \`${prefix}subbot vincular ${num}\``
           })
         } catch {}
       },
