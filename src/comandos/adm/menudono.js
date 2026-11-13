@@ -24,14 +24,14 @@ module.exports = async (sock, msg, from, sender, text) => {
         const bloco1 = [
             '╭┈❁ *👑 CONTROLE GLOBAL (A-Z)*',
             '┊',
-            `┊•.̇𖥨֗👻⭟${prefix}off (Desativar Grupo)`,
-            `┊•.̇𖥨֗👻⭟${prefix}offall (Desativar Global)`,
-            `┊•.̇𖥨֗👻⭟${prefix}on (Ativar Grupo)`,
-            `┊•.̇𖥨֗👻⭟${prefix}onall (Ativar Global)`,
+            `┊•.̇𖥨֗👻⭟${prefix}off`,
+            `┊•.̇𖥨֗👻⭟${prefix}offall`,
+            `┊•.̇𖥨֗👻⭟${prefix}on`,
+            `┊•.̇𖥨֗👻⭟${prefix}onall`,
             `┊•.̇𖥨֗👻⭟${prefix}prefixoglobal`,
             `┊•.̇𖥨֗👻⭟${prefix}status`,
             `┊•.̇𖥨֗👻⭟${prefix}subbot [lista/del]`,
-            `┊•.̇𖥨֗👻⭟${prefix}conect <numero> (Sub-bot)`,
+            `┊•.̇𖥨֗👻⭟${prefix}conect <numero>`,
             `┊•.̇𖥨֗👻⭟${prefix}subdono [add/remove]`,
             '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
         ].join('\n');
