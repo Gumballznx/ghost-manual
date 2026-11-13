@@ -8,7 +8,7 @@ const {
   useMultiFileAuthState,
   fetchLatestBaileysVersion
 } = require('@whiskeysockets/baileys')
-const { getGroupMetadataCached, isLeaderCheck, isSubdonoCheck, getSenderCandidateKeys } = require('../utils/baileys')
+const { getGroupMetadataCached, isLeaderCheck, isSubdonoCheck, getSenderCandidateKeys, sessaoPareada } = require('../utils/baileys')
 const { limparArquivosSessao } = require('../utils/sessionPruner')
 const MessageQueue = require('../utils/queue')
 const QRCode = require('qrcode')
@@ -113,7 +113,17 @@ class SubbotManager {
 
   normalizarNumero(numero) {
     if (!numero) return ''
+    // IDs temporários ('temp_...') ficam como estão; só números de telefone viram dígitos
+    if (String(numero).startsWith('temp_')) return String(numero)
     return String(numero).replace(/\D/g, '')
+  }
+
+  // Pasta de sessão do sub-bot. Sub-bots pareados por .qr nascem com um ID temporário e
+  // são renomeados para o número real ao conectar; a pasta continua com o nome antigo,
+  // por isso o nome dela fica gravado em subbots.json (campo 'sessao').
+  pastaSessao(num) {
+    const nome = this.dados.subbots?.[num]?.sessao || `subbot_${num}`
+    return path.join(SESSIONS_DIR, nome)
   }
 
   temSubbotAtivoNoGrupo(groupId) {
@@ -238,8 +248,11 @@ class SubbotManager {
     onConnected = null,
     onError = null
   }) {
+    // IDs temporários (sub-bot pedido por .qr antes de saber o número) não podem ser
+    // reduzidos aos dígitos: 'temp_<id do grupo>' virava o ID do GRUPO, abria outra pasta
+    // de sessão e pedia código de pareamento para esse "número", que nunca é válido.
     let num = this.normalizarNumero(numero)
-    if (method === 'code' && (!num || num.length < 8)) {
+    if (method === 'code' && !num.startsWith('temp_') && (!num || num.length < 8)) {
       throw new Error('Número de telefone inválido. Informe o número com DDI (ex: 25884xxxxxxx).')
     }
 
@@ -251,7 +264,7 @@ class SubbotManager {
       fs.mkdirSync(SESSIONS_DIR, { recursive: true })
     }
 
-    const sessionPath = path.join(SESSIONS_DIR, `subbot_${num}`)
+    const sessionPath = this.pastaSessao(num)
     if (!fs.existsSync(sessionPath)) {
       fs.mkdirSync(sessionPath, { recursive: true })
     }
@@ -260,6 +273,7 @@ class SubbotManager {
     if (!this.dados.subbots[num]) {
       this.dados.subbots[num] = {
         numero: num,
+        sessao: path.basename(sessionPath),
         grupos: grupoId ? [grupoId] : [],
         criadoEm: Date.now(),
         criadoPor: autorJid,
@@ -268,6 +282,7 @@ class SubbotManager {
       }
     } else {
       this.dados.subbots[num].ativo = true
+      this.dados.subbots[num].sessao = path.basename(sessionPath)
       this.dados.subbots[num].status = method === 'qr' ? 'aguardando_qr' : 'pareando'
       if (grupoId && !this.dados.subbots[num].grupos.includes(grupoId)) {
         this.dados.subbots[num].grupos.push(grupoId)
@@ -295,7 +310,9 @@ class SubbotManager {
       version,
       logger: pino({ level: 'silent' }),
       printQRInTerminal: false,
-      browser: ['GhostBot Sub', 'Chrome', '20.0.04'],
+      // O WhatsApp só aceita códigos de pareamento de navegadores/SOs conhecidos.
+      // Um nome personalizado (ex.: 'GhostBot Sub') faz o celular recusar o código como inválido.
+      browser: ['Ubuntu', 'Chrome', '20.0.04'],
       auth: state,
       emitOwnEvents: false,
       markOnlineOnConnect: true,
@@ -311,7 +328,7 @@ class SubbotManager {
       numero: num,
       method,
       grupos: this.dados.subbots[num].grupos || [],
-      status: state.creds.registered ? 'conectando' : (method === 'qr' ? 'aguardando_qr' : 'pareando'),
+      status: sessaoPareada(state.creds) ? 'conectando' : (method === 'qr' ? 'aguardando_qr' : 'pareando'),
       reconnectAttempts: 0,
       attempts: 0,
       queue,
@@ -349,14 +366,16 @@ class SubbotManager {
     }
 
     // Solicitar código de pareamento caso não esteja registrado e method seja 'code'
-    if (!sock.authState.creds.registered && method === 'code') {
+    // Só pede código para sessão AINDA NÃO pareada, e nunca para um ID temporário.
+    // Antes, sub-bots pareados por QR (registered=false) pediam um código a cada reinício.
+    if (!sessaoPareada(sock.authState.creds) && method === 'code' && !num.startsWith('temp_')) {
       const timeoutKey = `pairing_${num}`
       if (this.pairingTimeouts.has(timeoutKey)) {
         clearTimeout(this.pairingTimeouts.get(timeoutKey))
       }
 
       const requestPairing = async (retry = 0) => {
-        if (sock.authState.creds.registered) return
+        if (sessaoPareada(sock.authState.creds)) return
         try {
           console.log(`[SUBBOT ${num}] 🔑 Solicitando código de pareamento...`)
           const rawCode = await sock.requestPairingCode(num)
@@ -414,6 +433,7 @@ class SubbotManager {
         if (connectedNum && connectedNum !== num) {
           this.dados.subbots[connectedNum] = {
             numero: connectedNum,
+            sessao: path.basename(sessionPath),
             grupos: subbotEntry.grupos,
             criadoEm: Date.now(),
             criadoPor: autorJid,
@@ -488,8 +508,40 @@ class SubbotManager {
         console.log(`[SUBBOT ${num}] 🔌 Desconectado - Código: ${reason} (${reasonName})`)
 
         subbotEntry.status = 'offline'
-        this.dados.subbots[num].status = 'offline'
+        if (this.dados.subbots[num]) this.dados.subbots[num].status = 'offline'
         this.salvarDados()
+
+        // Pareamento ainda não concluído (o código/QR não foi aceito a tempo).
+        // Antes, a reconexão automática pedia um NOVO código em silêncio: o código que o
+        // usuário estava digitando deixava de valer e o novo nunca era mostrado.
+        // Exceção: 515 (restartRequired) é o reinício normal logo após o pareamento dar certo.
+        // creds.account só é preenchido quando o WhatsApp confirma o pareamento (código ou QR);
+        // creds.registered não serve, porque continua false em sessões pareadas por QR.
+        const pareamentoConcluido = sessaoPareada(sock.authState?.creds)
+        if (!pareamentoConcluido && reason !== DisconnectReason.restartRequired) {
+          const timeoutKey = `pairing_${num}`
+          if (this.pairingTimeouts.has(timeoutKey)) {
+            clearTimeout(this.pairingTimeouts.get(timeoutKey))
+            this.pairingTimeouts.delete(timeoutKey)
+          }
+          try { sock.ev.removeAllListeners() } catch {}
+          try { sock.ws?.close() } catch {}
+          try {
+            if (fs.existsSync(sessionPath)) fs.rmSync(sessionPath, { recursive: true, force: true })
+          } catch {}
+          if (this.activeSubbots.get(num) === subbotEntry) this.activeSubbots.delete(num)
+          if (this.dados.subbots[num]) {
+            this.dados.subbots[num].ativo = false
+            this.dados.subbots[num].status = 'pareamento_expirado'
+            this.salvarDados()
+          }
+          console.log(`[SUBBOT ${num}] ⌛ Pareamento não concluído (código ${reason}). Sessão descartada; gere um novo código.`)
+          if (typeof onError === 'function') {
+            const comoGerar = method === 'qr' ? '.qr' : `.conect ${num}`
+            onError(new Error(`O código de pareamento expirou ou foi recusado antes da conexão (código ${reason}). Gere um novo com ${comoGerar} e digite-o logo em seguida.`))
+          }
+          return
+        }
 
         const isLoggedOut = reason === DisconnectReason.loggedOut || reason === DisconnectReason.forbidden
 
@@ -531,8 +583,13 @@ class SubbotManager {
             setTimeout(() => {
               this.conectarSubbot({
                 numero: num,
+                method: subbotEntry.method,
                 grupoId: subbotEntry.grupoSolicitante,
-                autorJid
+                autorJid,
+                // Só repassa os avisos no reinício logo após o pareamento (515), para o
+                // usuário receber o "conectado"; quedas futuras não reenviam a mensagem.
+                onConnected: reason === DisconnectReason.restartRequired ? onConnected : null,
+                onError: reason === DisconnectReason.restartRequired ? onError : null
               }).catch(err => console.error(`[SUBBOT ${num}] Erro reconexão:`, err.message))
             }, delay)
           }
@@ -564,6 +621,7 @@ class SubbotManager {
   async desconectarSubbot(numero, apagarSessao = true) {
     const num = this.normalizarNumero(numero)
     const active = this.activeSubbots.get(num)
+    const sessionPath = this.pastaSessao(num)
 
     if (active?.sock) {
       try { active.sock.ws?.close() } catch {}
@@ -589,7 +647,6 @@ class SubbotManager {
     this.activeSubbots.delete(num)
 
     if (apagarSessao) {
-      const sessionPath = path.join(SESSIONS_DIR, `subbot_${num}`)
       if (fs.existsSync(sessionPath)) {
         try {
           fs.rmSync(sessionPath, { recursive: true, force: true })
@@ -617,7 +674,7 @@ class SubbotManager {
 
     for (const sb of salvos) {
       if (!sb.numero || sb.ativo === false) continue
-      const sessionPath = path.join(SESSIONS_DIR, `subbot_${sb.numero}`)
+      const sessionPath = this.pastaSessao(sb.numero)
       const credsPath = path.join(sessionPath, 'creds.json')
 
       if (fs.existsSync(credsPath)) {
@@ -716,9 +773,9 @@ class SubbotManager {
     }
 
     // Pairing code se method === 'code' e creds não registradas
-    if (!sock.authState.creds.registered && method === 'code') {
+    if (!sessaoPareada(sock.authState.creds) && method === 'code') {
       const requestPairing = async (retry = 0) => {
-        if (sock.authState.creds.registered) return
+        if (sessaoPareada(sock.authState.creds)) return
         try {
           console.log(`[CONEXÃO PRINCIPAL] 🔑 Solicitando código de pareamento para ${num}...`)
           const rawCode = await sock.requestPairingCode(num)

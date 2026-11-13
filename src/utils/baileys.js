@@ -188,6 +188,13 @@ function getSenderCandidateKeys(senderId) {
   return keys
 }
 
+// Sessão já pareada? creds.registered só vira true no pareamento por CÓDIGO;
+// no pareamento por QR ele continua false. creds.account é gravado nos dois casos
+// quando o WhatsApp confirma o pareamento.
+function sessaoPareada(creds) {
+  return !!(creds && (creds.registered || creds.account))
+}
+
 function isSubdonoCheck(sender) {
   if (!sender) return false
   const subdonos = loadSubdonos()
@@ -516,4 +523,5 @@ async function resolverParticipanteGrupo(sock, from, lidCru, msg = null) {
   return lidLimpo + '@lid'
 }
 
-module.exports = { getText, getSender, getSenderNumber, isAdmin, isOwnerCheck, isLeaderCheck, isSubdonoCheck, loadSubdonos, addSubdono, removeSubdono, getSenderCandidateKeys, getCargo, invalidateGroupCache, getGroupMetadataCached, resolverParticipanteGrupo }
+module.exports = {
+  sessaoPareada, getText, getSender, getSenderNumber, isAdmin, isOwnerCheck, isLeaderCheck, isSubdonoCheck, loadSubdonos, addSubdono, removeSubdono, getSenderCandidateKeys, getCargo, invalidateGroupCache, getGroupMetadataCached, resolverParticipanteGrupo }

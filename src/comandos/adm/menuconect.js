@@ -1,3 +1,4 @@
+const fs = require('fs')
 const path = require('path')
 const config = require(path.join(__dirname, '../../../data/config.json'))
 const subbotManager = require('../../bot/subbotManager')
@@ -37,17 +38,17 @@ async function handleMenuConect(sock, msg, from, sender, text) {
   const blocoConexao = [
     '╭┈❁ *🔌 MÉTODOS DE CONEXÃO (A-Z)*',
     '┊',
-    `┊•.̇𖥨֗👻⭟${prefix}conect <numero> (Código de 8 dígitos)`,
-    `┊•.̇𖥨֗👻⭟${prefix}qr (Escanear QR Code)`,
+    `┊•.̇𖥨֗👻⭟${prefix}conect <numero>`,
+    `┊•.̇𖥨֗👻⭟${prefix}qr`,
     '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
   ].join('\n')
 
   const blocoGestao = [
     '╭┈❁ *📊 GESTÃO DE SESSÕES & GRUPOS*',
     '┊',
-    `┊•.̇𖥨֗👻⭟${prefix}subbots (Ver sub-bots ativos)`,
-    `┊•.̇𖥨֗👻⭟${prefix}subbot grupos (Grupos vinculados)`,
-    `┊•.̇𖥨֗👻⭟${prefix}meusgrupos (Seus grupos autorizados)`,
+    `┊•.̇𖥨֗👻⭟${prefix}subbots`,
+    `┊•.̇𖥨֗👻⭟${prefix}subbot grupos`,
+    `┊•.̇𖥨֗👻⭟${prefix}meusgrupos`,
     `┊•.̇𖥨֗👻⭟${prefix}subbot vincular [numero]`,
     `┊•.̇𖥨֗👻⭟${prefix}subbot desvincular`,
     `┊•.̇𖥨֗👻⭟${prefix}desconectar <numero>`,
@@ -55,19 +56,33 @@ async function handleMenuConect(sock, msg, from, sender, text) {
   ].join('\n')
 
   const blocoDono = [
-    '╭┈❁ *👑 CONTROLE DE ACESSO & RESGATE (DONO/SUBDONO)*',
+    '╭┈❁ *👑 CONTROLE DE ACESSO & RESGATE*',
     '┊',
-    `┊•.̇𖥨֗👑⭟${prefix}conectarmae <numero> (Código de 8 dígitos)`,
-    `┊•.̇𖥨֗👑⭟${prefix}qrmae (QR Code Conexão Principal)`,
+    `┊•.̇𖥨֗👑⭟${prefix}conectarmae <numero>`,
+    `┊•.̇𖥨֗👑⭟${prefix}qrmae`,
     `┊•.̇𖥨֗👻⭟${prefix}subbot autorizar <numero | @user>`,
     `┊•.̇𖥨֗👻⭟${prefix}subbot desautorizar <numero>`,
     `┊•.̇𖥨֗👻⭟${prefix}subbot autorizados`,
     '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
   ].join('\n')
 
-  await sock.sendMessage(from, {
-    text: [header, blocoConexao, blocoGestao, blocoDono].join('\n\n')
-  }, { quoted: msg })
+  const blocoGithub = [
+    '╭┈❁ 🐙 *GITHUB*',
+    '┊•.̇𖥨֗💻⭟ github.com/Gumballznx/ghost-manual',
+    '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
+  ].join('\n')
+
+  const menuText = [header, blocoGithub, blocoConexao, blocoGestao, blocoDono].join('\n\n')
+  const logoPath = path.join(__dirname, '../../../assets', 'menuadm.jpg')
+
+  if (fs.existsSync(logoPath)) {
+    await sock.sendMessage(from, {
+      image: fs.readFileSync(logoPath),
+      caption: menuText
+    }, { quoted: msg })
+  } else {
+    await sock.sendMessage(from, { text: menuText }, { quoted: msg })
+  }
 
   return true
 }
