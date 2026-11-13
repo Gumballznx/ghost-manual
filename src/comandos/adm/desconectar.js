@@ -39,7 +39,7 @@ async function handleDesconectar(sock, msg, from, sender, text) {
           '╭┈⊰ 👻 『 *STATUS DA CONEXÃO* 』',
           '┊',
           '┊•.̇𖥨֗🏢⭟ *Atendimento:* Sub-Bot Dedicado',
-          `┊•.̇𖥨֗📱⭟ *Número:* +${subNoGrupo.numero}`,
+          `┊•.̇𖥨֗📱⭟ *Número:* ${subbotManager.rotulo(subNoGrupo.numero)}`,
           `┊•.̇𖥨֗🟢⭟ *Status:* ${subNoGrupo.status ? subNoGrupo.status.toUpperCase() : 'ONLINE'}`,
           '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
         ].join('\n')

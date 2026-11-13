@@ -118,6 +118,13 @@ class SubbotManager {
     return String(numero).replace(/\D/g, '')
   }
 
+  // Como o sub-bot aparece para as pessoas: IDs temporários (.qr antes de conectar)
+  // não são número de telefone e nunca devem aparecer em mensagens.
+  rotulo(num) {
+    const n = String(num || '')
+    return n.startsWith('temp_') ? 'aguardando conexão' : `+${n}`
+  }
+
   // Pasta de sessão do sub-bot. Sub-bots pareados por .qr nascem com um ID temporário e
   // são renomeados para o número real ao conectar; a pasta continua com o nome antigo,
   // por isso o nome dela fica gravado em subbots.json (campo 'sessao').
@@ -454,6 +461,7 @@ class SubbotManager {
         }
 
         subbotEntry.status = 'online'
+        subbotEntry.jaConectou = true // ficou online nesta execução do processo
         subbotEntry.reconnectAttempts = 0
         if (this.dados.subbots[num]) {
           this.dados.subbots[num].status = 'online'
@@ -498,7 +506,7 @@ class SubbotManager {
         if (subbotEntry.grupoSolicitante) {
           try {
             await sock.sendMessage(subbotEntry.grupoSolicitante, {
-              text: `🎉 *SUB-BOT CONECTADO COM SUCESSO!*\n\n📱 *Número:* +${num}\n🤖 A partir de agora, as respostas deste grupo serão enviadas por este número.`
+              text: `🎉 *SUB-BOT CONECTADO COM SUCESSO!*\n\n📱 *Número:* ${this.rotulo(num)}\n🤖 A partir de agora, as respostas deste grupo serão enviadas por este número.`
             })
           } catch {}
         }
@@ -556,22 +564,35 @@ class SubbotManager {
             console.error(`[SUBBOT ${num}] Erro ao apagar sessão:`, e.message)
           }
 
-          // Notifica grupos associados sobre o failover para o bot principal
+          // Notifica os grupos sobre o failover SÓ se o sub-bot estava de fato atendendo
+          // nesta execução. Se o 401 vier na restauração do boot (ex.: sessão antiga já
+          // desvinculada no celular), o grupo já estava com o bot principal e o aviso
+          // só confundia; nesse caso fica apenas no log.
+          const avisarGrupos = !!subbotEntry.jaConectou && !String(num).startsWith('temp_')
+          if (!avisarGrupos) {
+            console.log(`[SUBBOT ${num}] Sessão não estava atendendo nesta execução; grupos não serão avisados.`)
+          }
           const gruposAvisar = [...subbotEntry.grupos]
           for (const gid of gruposAvisar) {
             this.groupToSubbot.delete(gid)
             const mainSock = global.primarySocket || global.sock
-            if (mainSock) {
+            if (mainSock && avisarGrupos) {
               try {
                 mainSock.sendMessage(gid, {
-                  text: `⚠️ *AVISO DE SUB-BOT:*\n\nO Sub-Bot *+${num}* foi deslogado do WhatsApp.\n🔄 *Failover Ativado:* O Bot Principal assumiu o atendimento deste grupo imediatamente.`
+                  text: `⚠️ *AVISO DE SUB-BOT:*\n\nO Sub-Bot *${this.rotulo(num)}* foi deslogado do WhatsApp.\n🔄 *Failover Ativado:* O Bot Principal assumiu o atendimento deste grupo imediatamente.`
                 }).catch(() => {})
               } catch {}
             }
           }
 
-          this.dados.subbots[num].ativo = false
-          this.dados.subbots[num].status = 'desconectado_deslogado'
+          if (String(num).startsWith('temp_')) {
+            // Registro temporário de um .qr que nunca chegou a conectar: remove de vez
+            // para não poluir a lista de sub-bots.
+            delete this.dados.subbots[num]
+          } else if (this.dados.subbots[num]) {
+            this.dados.subbots[num].ativo = false
+            this.dados.subbots[num].status = 'desconectado_deslogado'
+          }
           this.salvarDados()
           this.activeSubbots.delete(num)
         } else {
