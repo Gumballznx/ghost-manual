@@ -295,7 +295,9 @@ class SubbotManager {
       version,
       logger: pino({ level: 'silent' }),
       printQRInTerminal: false,
-      browser: ['GhostBot Sub', 'Chrome', '20.0.04'],
+      // O WhatsApp só aceita códigos de pareamento de navegadores/SOs conhecidos.
+      // Um nome personalizado (ex.: 'GhostBot Sub') faz o celular recusar o código como inválido.
+      browser: ['Ubuntu', 'Chrome', '20.0.04'],
       auth: state,
       emitOwnEvents: false,
       markOnlineOnConnect: true,
@@ -488,8 +490,40 @@ class SubbotManager {
         console.log(`[SUBBOT ${num}] 🔌 Desconectado - Código: ${reason} (${reasonName})`)
 
         subbotEntry.status = 'offline'
-        this.dados.subbots[num].status = 'offline'
+        if (this.dados.subbots[num]) this.dados.subbots[num].status = 'offline'
         this.salvarDados()
+
+        // Pareamento ainda não concluído (o código/QR não foi aceito a tempo).
+        // Antes, a reconexão automática pedia um NOVO código em silêncio: o código que o
+        // usuário estava digitando deixava de valer e o novo nunca era mostrado.
+        // Exceção: 515 (restartRequired) é o reinício normal logo após o pareamento dar certo.
+        // creds.account só é preenchido quando o WhatsApp confirma o pareamento (código ou QR);
+        // creds.registered não serve, porque continua false em sessões pareadas por QR.
+        const pareamentoConcluido = !!sock.authState?.creds?.account
+        if (!pareamentoConcluido && reason !== DisconnectReason.restartRequired) {
+          const timeoutKey = `pairing_${num}`
+          if (this.pairingTimeouts.has(timeoutKey)) {
+            clearTimeout(this.pairingTimeouts.get(timeoutKey))
+            this.pairingTimeouts.delete(timeoutKey)
+          }
+          try { sock.ev.removeAllListeners() } catch {}
+          try { sock.ws?.close() } catch {}
+          try {
+            if (fs.existsSync(sessionPath)) fs.rmSync(sessionPath, { recursive: true, force: true })
+          } catch {}
+          if (this.activeSubbots.get(num) === subbotEntry) this.activeSubbots.delete(num)
+          if (this.dados.subbots[num]) {
+            this.dados.subbots[num].ativo = false
+            this.dados.subbots[num].status = 'pareamento_expirado'
+            this.salvarDados()
+          }
+          console.log(`[SUBBOT ${num}] ⌛ Pareamento não concluído (código ${reason}). Sessão descartada; gere um novo código.`)
+          if (typeof onError === 'function') {
+            const comoGerar = method === 'qr' ? '.qr' : `.conect ${num}`
+            onError(new Error(`O código de pareamento expirou ou foi recusado antes da conexão (código ${reason}). Gere um novo com ${comoGerar} e digite-o logo em seguida.`))
+          }
+          return
+        }
 
         const isLoggedOut = reason === DisconnectReason.loggedOut || reason === DisconnectReason.forbidden
 
@@ -532,7 +566,11 @@ class SubbotManager {
               this.conectarSubbot({
                 numero: num,
                 grupoId: subbotEntry.grupoSolicitante,
-                autorJid
+                autorJid,
+                // Só repassa os avisos no reinício logo após o pareamento (515), para o
+                // usuário receber o "conectado"; quedas futuras não reenviam a mensagem.
+                onConnected: reason === DisconnectReason.restartRequired ? onConnected : null,
+                onError: reason === DisconnectReason.restartRequired ? onError : null
               }).catch(err => console.error(`[SUBBOT ${num}] Erro reconexão:`, err.message))
             }, delay)
           }
