@@ -14,6 +14,7 @@ const {
 } = require("@whiskeysockets/baileys")
 
 const core = require("./src/bot/core.js")
+const { sessaoPareada } = require('./src/utils/baileys')
 
 const bemvindo = require("./src/middlewares/bemvindo")
 const antiPvChato = require('./src/middlewares/antiPvChato')
@@ -141,7 +142,7 @@ async function executarConexaoCli(isQrMode = false) {
     }
   })
 
-  if (!isQrMode && !sock.authState.creds.registered) {
+  if (!isQrMode && !sessaoPareada(sock.authState.creds)) {
     setTimeout(async () => {
       try {
         console.log(`[PAIRING] Solicitando código de 8 dígitos para ${maskedPhone}...`)
@@ -392,7 +393,9 @@ async function connectSocket() {
   let method = '1'
   let phoneNumber = config.botNumber || ''
 
-  if (!state.creds.registered) {
+  // Sessão pareada por QR (ex.: .qrmae) tem registered=false; sem esta checagem o bot
+  // achava que não havia credenciais e não conectava a principal depois de reiniciar.
+  if (!sessaoPareada(state.creds)) {
     if (!process.stdin.isTTY) {
       console.log(`[START] Conexão PRINCIPAL offline (sem credenciais). Para parear, execute no terminal: node index.js --pair <numero> ou node index.js --qr`)
       return
@@ -443,14 +446,14 @@ async function connectSocket() {
   global.sock = sock
   global.primarySocket = sock
 
-  if (method === '2' && !sock.authState.creds.registered) {
+  if (method === '2' && !sessaoPareada(sock.authState.creds)) {
     let targetPhone = phoneNumber
 
     if (targetPhone) {
       let attempts = 0
       const maxAttempts = 5
       const requestPairing = async () => {
-        if (sock.authState.creds.registered) return
+        if (sessaoPareada(sock.authState.creds)) return
         try {
           const cleanPhone = targetPhone.replace(/[^0-9]/g, "")
           console.log(`[PAIRING] Solicitando código para ${cleanPhone} (Tentativa ${attempts + 1}/${maxAttempts})...`)
