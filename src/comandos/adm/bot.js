@@ -4,12 +4,8 @@ const { isAdmin, isOwnerCheck } = require('../../utils/baileys')
 const { getGrupoConfig } = require('../../vendas/gruposConfig')
 const configManager = require('../../utils/configManager')
 
-function getDataMocambique() {
-    const now = new Date()
-    const offset = 2 * 60
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000)
-    return new Date(utc + (offset * 60000))
-}
+const { getDataMocambique } = require('../../utils/timezone')
+const { botStatusStore } = require('../../utils/firebaseDataLayer')
 
 function loadGroupConfig() {
     return configManager.loadGroupConfig()
@@ -84,18 +80,33 @@ module.exports = async (sock, msg, from, sender, text) => {
                 diasRestantes = '0'
             }
 
-            const botStatus = grupoInfo.botDesligado ? 'off' : 'on'
+            // Status real: desligado no grupo (.off), desligado global (.offall) ou sem licença
+            const globalOff = (botStatusStore.loadSync() || {}).ativo === false
+            const grupoOff = !!grupoInfo.botDesligado
+            const ligado = !globalOff && !grupoOff && aluguelStatus === 'on'
 
             linhasCorpo.push(`•.̇𖥨֗👻⭟ 👥 *Aluguel:* ${aluguelStatus}`)
             linhasCorpo.push(`•.̇𖥨֗👻⭟ ⏳ *Licença Grupo:* ${diasRestantes}`)
             linhasCorpo.push('')
-            linhasCorpo.push(`•.̇𖥨֗👻⭟ 🟢 *Status:* ${botStatus}`)
+            linhasCorpo.push(`•.̇𖥨֗👻⭟ ${ligado ? '🟢' : '🔴'} *Status:* ${ligado ? 'on' : 'off'}`)
+            if (grupoOff) {
+                const volta = grupoInfo.offExpiraEm ? ` (volta em ${formatarTempoRestante(grupoInfo.offExpiraEm - agora)})` : ''
+                linhasCorpo.push(`•.̇𖥨֗👻⭟ ⏸️ *Motivo:* desligado neste grupo com ${config.prefix}off${volta}`)
+                linhasCorpo.push(`•.̇𖥨֗👻⭟ ▶️ *Para religar:* ${config.prefix}on`)
+            } else if (globalOff) {
+                linhasCorpo.push(`•.̇𖥨֗👻⭟ ⏸️ *Motivo:* desligado em todos os grupos com ${config.prefix}offall`)
+                linhasCorpo.push(`•.̇𖥨֗👻⭟ ▶️ *Para religar:* ${config.prefix}onall`)
+            } else if (aluguelStatus !== 'on') {
+                linhasCorpo.push(`•.̇𖥨֗👻⭟ ⏸️ *Motivo:* grupo sem licença ativa`)
+            }
         } else {
             linhasCorpo.push(`•.̇𖥨֗👻⭟ 👑 *Painel Central do Dono*`)
             linhasCorpo.push(`•.̇𖥨֗👻⭟ 👥 *Aluguel:* on`)
             linhasCorpo.push(`•.̇𖥨֗👻⭟ ⏳ *Licença Grupo:* Vitalício`)
             linhasCorpo.push('')
-            linhasCorpo.push(`•.̇𖥨֗👻⭟ 🟢 *Status:* on`)
+            const globalOffPv = (botStatusStore.loadSync() || {}).ativo === false
+            linhasCorpo.push(`•.̇𖥨֗👻⭟ ${globalOffPv ? '🔴' : '🟢'} *Status:* ${globalOffPv ? 'off' : 'on'}`)
+            if (globalOffPv) linhasCorpo.push(`•.̇𖥨֗👻⭟ ▶️ *Para religar:* ${config.prefix}onall`)
         }
 
         const cardBot = [
