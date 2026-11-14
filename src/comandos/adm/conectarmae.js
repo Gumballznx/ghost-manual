@@ -156,6 +156,11 @@ async function handleConectarMae(sock, msg, from, sender, text) {
   const rawTarget = parts[1] || config.botNumber || ''
   const cleanNumber = String(rawTarget).replace(/\D/g, '')
 
+  const validacaoMae = subbotManager.validarNumeroComDDI(cleanNumber)
+  if (cleanNumber && !validacaoMae.ok) {
+    await sock.sendMessage(from, { text: `❌ *${validacaoMae.erro}*` }, { quoted: msg })
+    return true
+  }
   if (!cleanNumber || cleanNumber.length < 8) {
     await sock.sendMessage(from, {
       text: [

@@ -49,7 +49,7 @@ async function handleMenuConect(sock, msg, from, sender, text) {
     `┊•.̇𖥨֗👻⭟${prefix}subbots`,
     `┊•.̇𖥨֗👻⭟${prefix}subbot grupos`,
     `┊•.̇𖥨֗👻⭟${prefix}meusgrupos`,
-    `┊•.̇𖥨֗👻⭟${prefix}subbot vincular [numero]`,
+    `┊•.̇𖥨֗👻⭟${prefix}subbot vincular [link]`,
     `┊•.̇𖥨֗👻⭟${prefix}subbot desvincular`,
     `┊•.̇𖥨֗👻⭟${prefix}desconectar <numero>`,
     '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'

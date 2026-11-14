@@ -104,6 +104,14 @@ module.exports = async (sock, msg, from, sender, text) => {
       }
     } catch {}
 
+    const validacaoAut = subbotManager.validarNumeroComDDI(rawNumber)
+    if (!validacaoAut.ok) {
+      await sock.sendMessage(from, {
+        text: `❌ *${validacaoAut.erro}*\nExemplo: \`${prefix}subbot autorizar 258841234567\` ou mencione o @usuário.`
+      }, { quoted: msg })
+      return true
+    }
+
     try {
       const resultado = subbotManager.autorizarUsuario(rawNumber, sender)
       if (resultado.status === 'ja_autorizado') {
@@ -312,7 +320,7 @@ module.exports = async (sock, msg, from, sender, text) => {
 
     linhas.push(`┊•.̇𖥨֗💡⭟ *Comandos:*`)
     linhas.push(`┊   • \`${prefix}subbot grupos\` › Ver grupos autorizados`)
-    linhas.push(`┊   • \`${prefix}subbot vincular [numero]\` › Atrelar a este grupo`)
+    linhas.push(`┊   • \`${prefix}subbot vincular [link ou JID]\` › Atrelar grupo ao sub-bot`)
     linhas.push(`┊   • \`${prefix}subbot desvincular\` › Voltar para bot principal`)
     linhas.push(`┊   • \`${prefix}subbot del <numero>\` › Remover sub-bot`)
     if (isOwnerOrSubdono) {
@@ -349,65 +357,93 @@ module.exports = async (sock, msg, from, sender, text) => {
     return await executarRemoverSubbot(sock, msg, from, sender, rawNumber, isOwnerOrSubdono)
   }
 
-  // 4. .subbot vincular [numero] (vincula o grupo atual ao sub-bot)
+  // 4. .subbot vincular [grupo] [numero]
+  //    - dentro do grupo:  .subbot vincular            (funciona com só o sub-bot no grupo)
+  //    - de qualquer chat: .subbot vincular <JID do grupo | link de convite> [numero]
   if (subOpcao === 'vincular' || subOpcao === 'associar') {
-    if (!isGroup) {
-      await sock.sendMessage(from, { text: '❌ Este comando só pode ser usado dentro de um grupo.' }, { quoted: msg })
-      return true
-    }
-    let rawNumber = args[2]
-
-    // Se o revendedor não passou número, mas tem apenas 1 subbot dele, detecta automaticamente
-    if (!rawNumber && !isOwnerOrSubdono) {
-      const meus = subbotManager.getSubbotsDoUsuario(sender)
-      if (meus.length === 1) {
-        rawNumber = meus[0].numero
-      }
+    let alvoJid = null
+    let alvoLink = null
+    let rawNumber = null
+    for (const a of args.slice(2)) {
+      const digitos = a.replace(/\D/g, '')
+      if (/chat\.whatsapp\.com\//i.test(a)) alvoLink = a
+      else if (/@g\.us$/i.test(a)) alvoJid = a
+      else if (digitos.length >= 17) alvoJid = a.replace(/[^\d-]/g, '') + '@g.us' // ID de grupo sem @g.us
+      else if (digitos.length >= 8) rawNumber = digitos
     }
 
-    if (!rawNumber) {
+    if (!alvoJid && !alvoLink && !isGroup) {
       await sock.sendMessage(from, {
-        text: `❌ *Informe o número do sub-bot a ser vinculado.*\nExemplo: \`${prefix}subbot vincular 25884xxxxxxx\``
+        text: `❌ *Informe o grupo.*\nUse dentro do grupo: \`${prefix}subbot vincular\`\nOu daqui: \`${prefix}subbot vincular <link do grupo ou JID>\``
       }, { quoted: msg })
       return true
     }
 
-    const numLimpo = rawNumber.replace(/\D/g, '')
-
-    // Se não for dono/subdono, verifica se a sessão pertence a ele
-    if (!isOwnerOrSubdono) {
-      const sub = subbotManager.dados.subbots?.[numLimpo]
-      if (!sub) {
-        await sock.sendMessage(from, { text: `❌ Sub-bot +${numLimpo} não encontrado.` }, { quoted: msg })
-        return true
-      }
+    // Qual sub-bot: o número informado; senão o sub-bot que recebeu a mensagem;
+    // senão o único sub-bot do usuário.
+    if (!rawNumber) rawNumber = subbotManager.numeroDoSock(sock)
+    if (!rawNumber) {
       const meus = subbotManager.getSubbotsDoUsuario(sender)
-      const ehDele = meus.some(s => s.numero === numLimpo)
-      if (!ehDele) {
+      if (meus.length === 1) rawNumber = meus[0].numero
+    }
+    if (!rawNumber) {
+      await sock.sendMessage(from, {
+        text: `❌ *Informe o número do sub-bot.*\nExemplo: \`${prefix}subbot vincular 258841234567\``
+      }, { quoted: msg })
+      return true
+    }
+    const numLimpo = subbotManager.normalizarNumero(rawNumber)
+
+    // A conexão é de quem a criou: só ele (ou Dono/Subdono) escolhe os grupos
+    if (!isOwnerOrSubdono) {
+      const meus = subbotManager.getSubbotsDoUsuario(sender)
+      if (!meus.some(s => s.numero === numLimpo)) {
         await sock.sendMessage(from, { text: '⛔ Você só pode vincular grupos aos seus próprios sub-bots.' }, { quoted: msg })
         return true
       }
     }
 
-    // O número do sub-bot precisa estar no grupo, senão o grupo ficaria sem resposta
     const ativo = subbotManager.getSubbotPorNumero(numLimpo)
-    if (ativo?.sock && ativo.status === 'online') {
-      let participa = false
+    if (!ativo?.sock || ativo.status !== 'online') {
+      await sock.sendMessage(from, {
+        text: `❌ *O sub-bot +${numLimpo} não está online.*\nConecte-o com \`${prefix}conect ${numLimpo}\` e tente de novo.`
+      }, { quoted: msg })
+      return true
+    }
+
+    // Resolver o grupo pelo próprio sub-bot (ele é quem precisa estar lá)
+    let gid = alvoJid || (isGroup ? from : null)
+    if (alvoLink) {
       try {
-        const meta = await ativo.sock.groupMetadata(from)
-        participa = !!meta?.participants?.length
+        const code = alvoLink.split(/chat\.whatsapp\.com\//i)[1].split(/[?\s/#]/)[0]
+        const info = await ativo.sock.groupGetInviteInfo(code)
+        gid = info?.id ? (String(info.id).endsWith('@g.us') ? info.id : info.id + '@g.us') : null
       } catch {}
-      if (!participa) {
-        await sock.sendMessage(from, {
-          text: `❌ *O número +${numLimpo} não está neste grupo.*\nAdicione o número do sub-bot ao grupo e tente de novo.`
-        }, { quoted: msg })
+      if (!gid) {
+        await sock.sendMessage(from, { text: '❌ *Link de grupo inválido ou expirado.*' }, { quoted: msg })
         return true
       }
     }
 
-    subbotManager.vincularGrupo(numLimpo, from)
+    let meta = null
+    try { meta = await ativo.sock.groupMetadata(gid) } catch {}
+    if (!meta?.participants?.length) {
+      await sock.sendMessage(from, {
+        text: `❌ *O sub-bot +${numLimpo} não está nesse grupo.*\nAdicione o número do sub-bot ao grupo e tente de novo.`
+      }, { quoted: msg })
+      return true
+    }
+
+    subbotManager.vincularGrupo(numLimpo, gid)
     await sock.sendMessage(from, {
-      text: `✅ *Grupo Vinculado!*\n\n📱 Sub-Bot: *+${numLimpo}*\nEste grupo agora é atendido por este sub-bot.`
+      text: [
+        '╭┈⊰ 👻 『 *GRUPO VINCULADO* 』',
+        '┊',
+        `┊•.̇𖥨֗👥⭟ *Grupo:* ${meta.subject || gid}`,
+        `┊•.̇𖥨֗📱⭟ *Sub-Bot:* +${numLimpo}`,
+        '┊•.̇𖥨֗🤖⭟ O sub-bot passa a atender esse grupo.',
+        '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
+      ].join('\n')
     }, { quoted: msg })
     return true
   }
@@ -433,7 +469,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     `┊  • \`${prefix}conect <numero>\` › Conectar novo sub-bot`,
     `┊  • \`${prefix}subbots\` › Ver sub-bots online`,
     `┊  • \`${prefix}subbot grupos\` › Ver grupos autorizados para a sessão`,
-    `┊  • \`${prefix}subbot vincular [numero]\` › Atrelar a este grupo`,
+    `┊  • \`${prefix}subbot vincular [link ou JID]\` › Atrelar grupo ao sub-bot`,
     `┊  • \`${prefix}subbot desvincular\` › Bot principal reassume`,
     `┊  • \`${prefix}subbot del <numero>\` › Remover sub-bot`
   ]
@@ -574,7 +610,7 @@ async function listarGruposSessoes(sock, msg, from, sender, args, isOwnerOrSubdo
     if (grupos.length === 0) {
       linhas.push('┊•.̇𖥨֗ℹ️⭟ *Nenhum grupo vinculado a esta sessão ainda.*')
       linhas.push(`┊      Para vincular um grupo, digite no grupo desejado:`)
-      linhas.push(`┊      \`${prefix}subbot vincular ${sb.numero}\``)
+      linhas.push(`┊      \`${prefix}subbot vincular\` (ou com o link do grupo)`)
     } else {
       for (let i = 0; i < grupos.length; i++) {
         const gid = grupos[i]
@@ -587,7 +623,7 @@ async function listarGruposSessoes(sock, msg, from, sender, args, isOwnerOrSubdo
   }
 
   linhas.push(`┊•.̇𖥨֗💡⭟ *Comandos:*`)
-  linhas.push(`┊   • \`${prefix}subbot vincular [numero]\` › Atrelar grupo atual`)
+  linhas.push(`┊   • \`${prefix}subbot vincular [link ou JID]\` › Atrelar grupo ao sub-bot`)
   linhas.push(`┊   • \`${prefix}subbot desvincular\` › Desatrelar grupo atual`)
   linhas.push('╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯')
 
@@ -597,9 +633,10 @@ async function listarGruposSessoes(sock, msg, from, sender, args, isOwnerOrSubdo
 
 async function executarConexaoSubbot(sock, msg, from, sender, rawNumber, prefix) {
   const cleanNumber = String(rawNumber).replace(/\D/g, '')
-  if (cleanNumber.length < 8) {
+  const validacao = subbotManager.validarNumeroComDDI(cleanNumber)
+  if (!validacao.ok) {
     await sock.sendMessage(from, {
-      text: '❌ *Número inválido!* Digite o número completo com DDI (ex: 258841234567).'
+      text: `❌ *${validacao.erro}*\nExemplo: \`${prefix}conect 258841234567\``
     }, { quoted: msg })
     return true
   }
@@ -658,7 +695,7 @@ async function executarConexaoSubbot(sock, msg, from, sender, rawNumber, prefix)
       onConnected: async (num) => {
         try {
           await sock.sendMessage(from, {
-            text: `🎉 *SUB-BOT CONECTADO COM SUCESSO!*\n\n📱 Chip: *+${num}*\n🔗 Ele ainda não atende nenhum grupo.\n💡 Em cada grupo onde ele deve atender, envie: \`${prefix}subbot vincular ${num}\``
+            text: `🎉 *SUB-BOT CONECTADO COM SUCESSO!*\n\n📱 Chip: *+${num}*\n🔗 Ele ainda não atende nenhum grupo.\n\n💡 *Para ativar num grupo:*\n1. Adicione o número +${num} ao grupo.\n2. No grupo, envie \`${prefix}subbot vincular\`\n   ou daqui: \`${prefix}subbot vincular <link do grupo>\``
           })
         } catch {}
       },
