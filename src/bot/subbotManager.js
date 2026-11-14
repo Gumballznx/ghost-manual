@@ -130,6 +130,36 @@ class SubbotManager {
     return String(numero).replace(/\D/g, '')
   }
 
+  // Número de telefone tem de vir com DDI (ex.: 258 em Moçambique). Um número local
+  // (ex.: 854028870) gera um código de pareamento para outro número e o WhatsApp recusa.
+  validarNumeroComDDI(raw) {
+    const numero = String(raw || '').replace(/\D/g, '')
+    if (!numero) return { ok: false, numero, erro: 'Informe o número com DDI (ex.: 258841234567).' }
+    if (/^8[2-7]\d{7}$/.test(numero)) {
+      return { ok: false, numero, erro: `Número sem DDI. Use com o código do país: 258${numero}` }
+    }
+    if (numero.startsWith('0') || numero.length < 10 || numero.length > 15) {
+      return { ok: false, numero, erro: 'Número inválido ou sem DDI. Informe o número completo com o código do país (ex.: 258841234567).' }
+    }
+    return { ok: true, numero }
+  }
+
+  // Número do sub-bot dono deste socket (null se for o bot principal)
+  numeroDoSock(sock) {
+    if (!sock) return null
+    for (const [num, entry] of this.activeSubbots.entries()) {
+      if (entry.sock === sock) return num
+    }
+    return null
+  }
+
+  // Socket que deve falar com o grupo: o sub-bot vinculado (se online) ou o bot principal.
+  socketParaGrupo(groupId) {
+    const sub = this.getSubbotDoGrupo(groupId)
+    if (sub?.sock && sub.status === 'online') return sub.sock
+    return global.primarySocket || null
+  }
+
   // Como o sub-bot aparece para as pessoas: IDs temporários (.qr antes de conectar)
   // não são número de telefone e nunca devem aparecer em mensagens.
   rotulo(num) {
@@ -274,8 +304,9 @@ class SubbotManager {
     // reduzidos aos dígitos: 'temp_<id do grupo>' virava o ID do GRUPO, abria outra pasta
     // de sessão e pedia código de pareamento para esse "número", que nunca é válido.
     let num = this.normalizarNumero(numero)
-    if (method === 'code' && !num.startsWith('temp_') && (!num || num.length < 8)) {
-      throw new Error('Número de telefone inválido. Informe o número com DDI (ex: 25884xxxxxxx).')
+    if (method === 'code' && !num.startsWith('temp_')) {
+      const v = this.validarNumeroComDDI(num)
+      if (!v.ok) throw new Error(v.erro)
     }
 
     if (!num) {
@@ -621,7 +652,13 @@ class SubbotManager {
           // Em grupo, o sub-bot só atende onde foi vinculado; nos demais quem responde
           // é o bot principal (evita respostas duplicadas e atendimento não autorizado).
           const jid = msg?.key?.remoteJid || ''
-          if (jid.endsWith('@g.us') && this.groupToSubbot.get(jid) !== num) continue
+          if (jid.endsWith('@g.us') && this.groupToSubbot.get(jid) !== num) {
+            // Exceção: o comando de vínculo, para o dono poder vincular um grupo onde
+            // só o sub-bot está (sem precisar do bot principal no grupo).
+            const m = msg?.message || {}
+            const t = (m.conversation || m.extendedTextMessage?.text || '').trim()
+            if (!/^\S\s*subbot\s+(vincular|associar)\b/i.test(t)) continue
+          }
           try {
             await this.processarMensagemFn(sock, msg)
           } catch (mErr) {
@@ -734,8 +771,9 @@ class SubbotManager {
     }
 
     let num = this.normalizarNumero(numero)
-    if (method === 'code' && (!num || num.length < 8)) {
-      throw new Error('Número de telefone inválido para a Conexão Principal. Informe com DDI (ex: 25887xxxxxxx).')
+    if (method === 'code') {
+      const v = this.validarNumeroComDDI(num)
+      if (!v.ok) throw new Error(v.erro)
     }
 
     // Se já houver um socket principal antigo tentando reconectar, fechar

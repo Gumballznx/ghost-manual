@@ -109,7 +109,9 @@ async function handleQrCommand(sock, msg, from, sender, text) {
               `┊•.̇𖥨֗📱⭟ *Número Conectado:* +${num}`,
               '┊•.̇𖥨֗🟢⭟ *Status:* ONLINE',
               '┊•.̇𖥨֗🔗⭟ Ainda não atende nenhum grupo.',
-              `┊•.̇𖥨֗💡⭟ Para escolher os grupos: ${prefix}subbot vincular ${num}`,
+              `┊•.̇𖥨֗1️⃣⭟ Adicione o número +${num} ao grupo`,
+              `┊•.̇𖥨֗2️⃣⭟ No grupo envie ${prefix}subbot vincular`,
+              `┊•.̇𖥨֗🔗⭟ Ou daqui: ${prefix}subbot vincular <link do grupo>`,
               '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
             ].join('\n')
           })

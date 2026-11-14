@@ -69,15 +69,21 @@ async function baterRelogio() {
 
         await verificarEExecutarResetDiario().catch(() => {})
 
-        if (botConectado) {
+        // Também roda só com sub-bots online (grupos onde o principal não está)
+        const subbotManager = require('../bot/subbotManager')
+        const temSubbotOnline = subbotManager.listarSubbots().some(s => s.online)
+        if (botConectado || temSubbotOnline) {
             const groups = configManager.loadGroupConfig()
-            const activeSock = global.sock || global.primarySocket
             const agoraMz = getDataMocambique().getTime()
 
             for (const [groupId, cfg] of Object.entries(groups)) {
                 if (!groupId || !groupId.endsWith('@g.us')) continue
                 if (cfg.authorized === false) continue
                 if (cfg.expiraEm && agoraMz >= cfg.expiraEm) continue
+
+                // Sub-bot vinculado ao grupo fala por ele; senão o bot principal
+                const activeSock = subbotManager.socketParaGrupo(groupId)
+                if (!activeSock) continue
 
                 // Abertura automática de grupo
                 if (cfg.horaAbrir && cfg.horaAbrir === horaAtualMz) {

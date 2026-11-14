@@ -723,7 +723,7 @@ async function connectSocket() {
     global.timersIniciados = true
 
     setInterval(async () => {
-      const botConectado = global.primaryConnected
+      const botConectado = global.primaryConnected || subbotManager.listarSubbots().some(s => s.online)
       if (!botConectado) return
       try {
         const groups = configManager.loadGroupConfig()
@@ -743,8 +743,9 @@ async function connectSocket() {
               delete groups[groupId].offExpiraEm
               mudou = true
 
-              const activeSock = global.primarySocket
-              const isParticipating = global.participatingGroups && global.participatingGroups.has(groupId)
+              const temSub = subbotManager.temSubbotAtivoNoGrupo(groupId)
+              const activeSock = subbotManager.socketParaGrupo(groupId)
+              const isParticipating = temSub || (global.participatingGroups && global.participatingGroups.has(groupId))
               if (activeSock && isParticipating) {
                 try {
                   await activeSock.sendMessage(groupId, {
@@ -761,10 +762,12 @@ async function connectSocket() {
           if (cfg.authorized && cfg.expiraEm) {
             const tempoRestante = cfg.expiraEm - agoraMocambique
 
-            const activeSock = global.primarySocket
+            // Grupo atendido por sub-bot (sem o principal) também recebe os avisos
+            const temSub = subbotManager.temSubbotAtivoNoGrupo(groupId)
+            const activeSock = subbotManager.socketParaGrupo(groupId)
             if (!activeSock) continue
 
-            const isParticipating = global.participatingGroups && global.participatingGroups.has(groupId)
+            const isParticipating = temSub || (global.participatingGroups && global.participatingGroups.has(groupId))
             if (!isParticipating) {
               if (tempoRestante <= 0 && !cfg.avisouExpiracao) {
                 groups[groupId].avisouExpiracao = true

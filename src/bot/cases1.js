@@ -149,7 +149,9 @@ module.exports = async function (sock, msg) {
             text.startsWith(config.prefix + 'sair') ||
             text.toLowerCase().startsWith('ghost-') ||
             /ghost-[a-z0-9]{4}-[a-z0-9]{4}/i.test(text) ||
-            text === config.prefix + 'bot'
+            text === config.prefix + 'bot' ||
+            // vincular o grupo a um sub-bot vem antes da licença (o sub-bot é que ativa)
+            new RegExp('^' + config.prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*subbot\\s+(vincular|associar)\\b', 'i').test(text)
 
         const { getDataMocambique } = require('../utils/timezone')
         const agoraMz = getDataMocambique().getTime()
