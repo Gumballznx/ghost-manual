@@ -1,6 +1,7 @@
 const path = require('path')
 const config = require(path.join(__dirname, '../../../data/config.json'))
 const { isLeaderCheck } = require('../../utils/baileys')
+const { isDonoConexaoDoGrupo } = require('../../utils/donoConexao')
 const configManager = require('../../utils/configManager')
 const { botStatusStore } = require('../../utils/firebaseDataLayer')
 
@@ -40,7 +41,16 @@ module.exports = async (sock, msg, from, sender, text) => {
 
     if (isOffAll || isOff) {
 
-        if (!isLeaderCheck(sender, msg)) {
+        const isLider = isLeaderCheck(sender, msg)
+        const argsPerm = cleanText.split(/\s+/).slice(1)
+        const primeiroArg = (argsPerm[0] || '').toLowerCase()
+        // Dono da conexão (sub-bot) pode desligar o grupo atual que o seu sub-bot atende
+        // (com ou sem tempo), mas não usar .offall nem .off <índice>/todos.
+        const isDonoConexao = !isLider && isOff && !isOffAll &&
+            !/^\d+$/.test(primeiroArg) && !['todos', 'all', 'global'].includes(primeiroArg) &&
+            isDonoConexaoDoGrupo(sock, sender, msg, from)
+
+        if (!isLider && !isDonoConexao) {
             await sock.sendMessage(from, {
                 text: [
                     '╭┈⊰ 👻 『 *ACESSO NEGADO* 』',
@@ -131,7 +141,7 @@ module.exports = async (sock, msg, from, sender, text) => {
         }
 
         groups[targetJid].botDesligado = true
-        groups[targetJid].offPor = 'dono'
+        groups[targetJid].offPor = isLider ? 'dono' : 'conexao'
         if (offExpiraEm) {
             groups[targetJid].offExpiraEm = offExpiraEm
         } else {

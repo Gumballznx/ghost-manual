@@ -170,7 +170,8 @@ module.exports = async function (sock, msg) {
             }
 
             const { isLeaderCheck } = require('../utils/baileys')
-            if (!isLeaderCheck(sender, msg)) {
+            const { isDonoConexaoDoGrupo } = require('../utils/donoConexao')
+            if (!isLeaderCheck(sender, msg) && !isDonoConexaoDoGrupo(sock, sender, msg, from)) {
                 return true
             }
 

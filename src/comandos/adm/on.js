@@ -1,6 +1,7 @@
 const path = require('path')
 const config = require(path.join(__dirname, '../../../data/config.json'))
 const { isLeaderCheck } = require('../../utils/baileys')
+const { isDonoConexaoDoGrupo } = require('../../utils/donoConexao')
 const configManager = require('../../utils/configManager')
 const { botStatusStore } = require('../../utils/firebaseDataLayer')
 
@@ -14,7 +15,14 @@ module.exports = async (sock, msg, from, sender, text) => {
 
     if (isOnAll || isOn) {
 
-        if (!isLeaderCheck(sender, msg)) {
+        const isLider = isLeaderCheck(sender, msg)
+        const argsPerm = cleanText.split(/\s+/).slice(1)
+        // Dono da conexão (sub-bot) pode reativar o grupo atual que o seu sub-bot atende,
+        // mas não usar .onall nem .on <índice>.
+        const isDonoConexao = !isLider && isOn && !isOnAll && argsPerm.length === 0 &&
+            isDonoConexaoDoGrupo(sock, sender, msg, from)
+
+        if (!isLider && !isDonoConexao) {
             await sock.sendMessage(from, {
                 text: [
                     '╭┈⊰ 👻 『 *ACESSO NEGADO* 』',
@@ -87,9 +95,11 @@ module.exports = async (sock, msg, from, sender, text) => {
         }
 
         const groups = configManager.loadGroupConfig()
-        const cfg = groups[targetJid]
+        const dotKey = targetJid.replace(/\./g, '___dot___')
+        const cfg = groups[targetJid] || groups[dotKey]
+        const desligado = Boolean((groups[targetJid] && groups[targetJid].botDesligado) || (groups[dotKey] && groups[dotKey].botDesligado))
 
-        if (!cfg || !cfg.botDesligado) {
+        if (!cfg || !desligado) {
             await sock.sendMessage(from, {
                 text: [
                     '╭┈⊰ 👻 『 *AVISO* 』',
@@ -103,9 +113,13 @@ module.exports = async (sock, msg, from, sender, text) => {
             return true
         }
 
-        delete groups[targetJid].botDesligado
-        delete groups[targetJid].offPor
-        delete groups[targetJid].offExpiraEm
+        // Limpa a flag em todas as variantes da chave (a cópia ___dot___ vem do sync com o Firebase)
+        for (const k of new Set([targetJid, dotKey])) {
+            if (!groups[k]) continue
+            delete groups[k].botDesligado
+            delete groups[k].offPor
+            delete groups[k].offExpiraEm
+        }
 
         configManager.saveGroupConfig(true)
 

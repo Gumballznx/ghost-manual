@@ -169,6 +169,11 @@ module.exports = async (sock, msg, from, sender, text) => {
     delete groups[from].avisouExpiracao;
     delete groups[from].avisouPreExpiracao5d;
     delete groups[from].avisouPreExpiracao24h;
+    // Licença nova = bot ligado. Sem isto, um .off antigo (de um aluguel anterior)
+    // continuava valendo e o grupo voltava com "Status: off".
+    delete groups[from].botDesligado;
+    delete groups[from].offPor;
+    delete groups[from].offExpiraEm;
 
     const tempoStr = licencaInfo.duracao;
     let expiracaoMs = null;
