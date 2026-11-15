@@ -63,6 +63,11 @@ module.exports = async (sock, msg, from, sender, text) => {
   // ==========================================
   const subOpcao = (args[1] || '').toLowerCase()
 
+  // .subbot <nº> grupos  → nome, membros e link de cada grupo em que o sub-bot está
+  if (isSubbotCmd && /^#?\d{1,3}$/.test(args[1] || '') && /^(grupos|grupo|links|link)$/i.test(args[2] || '')) {
+    return await enviarLinksGrupos(sock, msg, from, sender, args[1], isOwnerOrSubdono, prefix)
+  }
+
   if (subOpcao === 'autorizar' || subOpcao === 'auth' || subOpcao === 'permitir' || subOpcao === 'add') {
     if (!isOwnerOrSubdono) {
       await sock.sendMessage(from, {
@@ -271,7 +276,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     const rawNumber = args[1]
     if (!rawNumber) {
       await sock.sendMessage(from, {
-        text: `❌ *Informe o número do sub-bot a ser removido.*\nExemplo: \`${prefix}delsubbot 25884xxxxxxx\``
+        text: `❌ *Informe o sub-bot a remover.*\nExemplo: \`${prefix}delsubbot 2\` (nº da lista do ${prefix}subbots)`
       }, { quoted: msg })
       return true
     }
@@ -284,16 +289,14 @@ module.exports = async (sock, msg, from, sender, text) => {
 
   // 1. .subbot lista / .subbots / .subbot status
   if (!subOpcao || subOpcao === 'lista' || subOpcao === 'list' || subOpcao === 'status' || command === 'subbots') {
-    const lista = isOwnerOrSubdono
-      ? subbotManager.listarSubbots()
-      : subbotManager.getSubbotsDoUsuario(sender)
+    const lista = subbotManager.listaVisivel(sender, isOwnerOrSubdono)
 
     if (!lista || lista.length === 0) {
       await sock.sendMessage(from, {
         text: [
           '╭┈⊰ 👻 『 *SISTEMA DE SUB-BOTS* 』',
           '┊',
-          `┊•.̇𖥨֗ℹ️⭟ *${isOwnerOrSubdono ? 'Nenhum sub-bot registrado no momento.' : 'Você não possui nenhum sub-bot conectado.'}*`,
+          `┊•.̇𖥨֗ℹ️⭟ *${isOwnerOrSubdono ? 'Nenhum sub-bot online no momento.' : 'Você não possui nenhum sub-bot online.'}*`,
           '┊',
           `┊•.̇𖥨֗➕⭟ Digite *${prefix}conect <numero>* para conectar`,
           '┊      um chip secundário agora mesmo!',
@@ -304,16 +307,15 @@ module.exports = async (sock, msg, from, sender, text) => {
     }
 
     const linhas = [
-      `╭┈⊰ 👻 『 *${isOwnerOrSubdono ? 'SUB-BOTS ATIVOS & REGISTRADOS' : 'SEUS SUB-BOTS CONECTADOS'}* 』`,
+      `╭┈⊰ 👻 『 *${isOwnerOrSubdono ? 'SUB-BOTS ONLINE' : 'SEUS SUB-BOTS ONLINE'}* 』`,
       '┊'
     ]
 
     for (let i = 0; i < lista.length; i++) {
       const sb = lista[i]
-      const statusIcon = sb.online ? '🟢 Online' : (sb.status === 'pareando' ? '🟡 Pareando' : '🔴 Offline')
       const qtdGrupos = sb.grupos ? sb.grupos.length : 0
       linhas.push(`┊•.̇𖥨֗📱⭟ *Sub-Bot #${i + 1}:* ${subbotManager.rotulo(sb.numero)}`)
-      linhas.push(`┊      Status: *${statusIcon}*`)
+      linhas.push(`┊      Status: *🟢 Online*`)
       linhas.push(`┊      Grupos atendidos: *${qtdGrupos}*`)
       linhas.push('┊')
     }
@@ -322,7 +324,8 @@ module.exports = async (sock, msg, from, sender, text) => {
     linhas.push(`┊   • \`${prefix}subbot grupos\` › Ver grupos autorizados`)
     linhas.push(`┊   • \`${prefix}subbot vincular [link ou JID]\` › Atrelar grupo ao sub-bot`)
     linhas.push(`┊   • \`${prefix}subbot desvincular\` › Voltar para bot principal`)
-    linhas.push(`┊   • \`${prefix}subbot del <numero>\` › Remover sub-bot`)
+    linhas.push(`┊   • \`${prefix}subbot <nº> grupos\` › Links dos grupos do sub-bot`)
+    linhas.push(`┊   • \`${prefix}subbot del <nº>\` › Remover sub-bot`)
     if (isOwnerOrSubdono) {
       linhas.push(`┊   • \`${prefix}subbot autorizar <numero>\` › Autorizar revendedor`)
       linhas.push(`┊   • \`${prefix}subbot autorizados\` › Ver lista de autorizados`)
@@ -350,7 +353,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     const rawNumber = args[2]
     if (!rawNumber) {
       await sock.sendMessage(from, {
-        text: `❌ *Informe o número a remover.*\nExemplo: \`${prefix}subbot del 25884xxxxxxx\``
+        text: `❌ *Informe o sub-bot a remover.*\nExemplo: \`${prefix}subbot del 2\` (nº da lista do ${prefix}subbots)`
       }, { quoted: msg })
       return true
     }
@@ -716,25 +719,122 @@ async function executarConexaoSubbot(sock, msg, from, sender, rawNumber, prefix)
   return true
 }
 
-async function executarRemoverSubbot(sock, msg, from, sender, rawNumber, isOwnerOrSubdono) {
-  const cleanNumber = String(rawNumber).replace(/\D/g, '')
-  const subbot = subbotManager.dados.subbots?.[cleanNumber]
+async function executarRemoverSubbot(sock, msg, from, sender, ref, isOwnerOrSubdono) {
+  const prefix = config.prefix || '.'
+  // A posição (#9) é a da lista do .subbots de quem pediu
+  const lista = subbotManager.listaVisivel(sender, isOwnerOrSubdono)
+  let alvo = subbotManager.resolverSubbot(ref, lista)
 
-  // Se for usuário autorizado (revendedor), ele só pode deletar o sub-bot se ele mesmo criou
-  if (!isOwnerOrSubdono && subbot && subbot.criadoPor) {
+  // Dono/Subdono também pode remover pelo número um registro que não está online
+  if (!alvo && isOwnerOrSubdono) {
+    const digitos = String(ref || '').replace(/\D/g, '')
+    if (digitos.length > 3 && subbotManager.dados.subbots?.[digitos]) {
+      alvo = { sb: { numero: digitos, ...subbotManager.dados.subbots[digitos] }, posicao: null }
+    }
+  }
+
+  if (!alvo) {
+    await sock.sendMessage(from, {
+      text: `❌ *Sub-bot ${String(ref).replace(/^#/, '').length <= 3 ? '#' + String(ref).replace(/^#/, '') : '+' + String(ref).replace(/\D/g, '')} não existe.*\nVeja a lista com \`${prefix}subbots\`.`
+    }, { quoted: msg })
+    return true
+  }
+
+  const num = String(alvo.sb.numero)
+  const registro = subbotManager.dados.subbots?.[num] || alvo.sb
+
+  // Revendedor só remove os sub-bots que ele mesmo criou
+  if (!isOwnerOrSubdono && registro.criadoPor) {
     const senderClean = String(sender).split('@')[0].split(':')[0].replace(/\D/g, '')
-    const criadorClean = String(subbot.criadoPor).split('@')[0].split(':')[0].replace(/\D/g, '')
+    const criadorClean = String(registro.criadoPor).split('@')[0].split(':')[0].replace(/\D/g, '')
     if (senderClean !== criadorClean) {
-      await sock.sendMessage(from, {
-        text: '❌ *Você só tem permissão para remover os sub-bots criados por você.*'
-      }, { quoted: msg })
+      await sock.sendMessage(from, { text: '❌ *Você só pode remover os sub-bots criados por você.*' }, { quoted: msg })
       return true
     }
   }
 
-  await subbotManager.desconectarSubbot(cleanNumber, true)
+  const qtdGrupos = (registro.grupos || []).length
+  await subbotManager.desconectarSubbot(num, true)
+  const aindaExiste = !!subbotManager.dados.subbots?.[num] || subbotManager.activeSubbots.has(num)
+
   await sock.sendMessage(from, {
-    text: `🗑️ *Sub-Bot +${cleanNumber} desconectado e removido com sucesso!*\n\nO bot principal reassumiu o atendimento de qualquer grupo que estava atrelado a ele.`
+    text: [
+      '╭┈⊰ 👻 『 *SUB-BOT REMOVIDO* 』',
+      '┊',
+      `┊•.̇𖥨֗📱⭟ *Sub-Bot${alvo.posicao ? ' #' + alvo.posicao : ''}:* +${num}`,
+      `┊•.̇𖥨֗🗑️⭟ ${aindaExiste ? 'Falha ao remover, tente de novo.' : 'Desconectado e sessão apagada da VPS.'}`,
+      `┊•.̇𖥨֗👥⭟ ${qtdGrupos ? qtdGrupos + ' grupo(s) voltaram para o bot principal.' : 'Não atendia nenhum grupo.'}`,
+      '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
+    ].join('\n')
   }, { quoted: msg })
   return true
 }
+
+// .subbot <nº> grupos → lista os grupos em que o sub-bot está, com nome, membros e link.
+// Se um grupo falhar (ex.: sub-bot não é admin), os outros continuam.
+async function enviarLinksGrupos(sock, msg, from, sender, ref, isOwnerOrSubdono, prefix) {
+  const lista = subbotManager.listaVisivel(sender, isOwnerOrSubdono)
+  const alvo = subbotManager.resolverSubbot(ref, lista)
+  if (!alvo) {
+    await sock.sendMessage(from, {
+      text: `❌ *Sub-bot #${String(ref).replace(/^#/, '')} não existe.*\nVeja a lista com \`${prefix}subbots\`.`
+    }, { quoted: msg })
+    return true
+  }
+
+  const num = String(alvo.sb.numero)
+  const ativo = subbotManager.getSubbotPorNumero(num)
+  if (!ativo?.sock || ativo.status !== 'online') {
+    await sock.sendMessage(from, { text: `❌ *O sub-bot #${alvo.posicao} (+${num}) não está online.*` }, { quoted: msg })
+    return true
+  }
+
+  let grupos = {}
+  try {
+    grupos = await ativo.sock.groupFetchAllParticipating() || {}
+  } catch (e) {
+    await sock.sendMessage(from, { text: `❌ *Não consegui buscar os grupos do sub-bot:* ${e.message}` }, { quoted: msg })
+    return true
+  }
+
+  const vinculados = new Set(subbotManager.dados.subbots?.[num]?.grupos || [])
+  const itens = Object.values(grupos)
+    .filter(g => g && g.id)
+    .sort((a, b) => String(a.subject || '').localeCompare(String(b.subject || ''), 'pt'))
+
+  const linhas = [
+    `╭┈⊰ 👻 『 *GRUPOS DO SUB-BOT #${alvo.posicao}* 』`,
+    `┊•.̇𖥨֗📱⭟ +${num}`,
+    `┊•.̇𖥨֗👥⭟ *${itens.length}* grupo(s)`,
+    '┊'
+  ]
+
+  if (!itens.length) {
+    linhas.push('┊ O sub-bot não está em nenhum grupo.')
+  }
+
+  for (let i = 0; i < itens.length; i++) {
+    const g = itens[i]
+    const membros = Array.isArray(g.participants) ? g.participants.length : (g.size || 0)
+    linhas.push(`┊ *${i + 1}. ${g.subject || 'Sem nome'}*`)
+    linhas.push(`┊    👥 ${membros} membros${vinculados.has(g.id) ? ' · 🔗 vinculado' : ''}`)
+    try {
+      const code = await ativo.sock.groupInviteCode(g.id)
+      if (!code) throw new Error('sem código')
+      linhas.push(`┊    https://chat.whatsapp.com/${code}`)
+    } catch (e) {
+      const m = String(e?.message || e || '')
+      const motivo = /not-authorized|forbidden|401|403/i.test(m)
+        ? 'o sub-bot não é admin do grupo'
+        : /timed? ?out|408/i.test(m) ? 'o WhatsApp não respondeu a tempo' : (m || 'erro desconhecido')
+      linhas.push(`┊    ⚠️ Sem link: ${motivo}`)
+    }
+    linhas.push('┊')
+  }
+  linhas.push('╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯')
+
+  await sock.sendMessage(from, { text: linhas.join('\n') }, { quoted: msg })
+  return true
+}
+
+module.exports.executarRemoverSubbot = executarRemoverSubbot
