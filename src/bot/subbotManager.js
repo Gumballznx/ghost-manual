@@ -52,11 +52,55 @@ class SubbotManager {
           this.salvarDados()
           console.log('[SUBBOTS] Vínculos automáticos de grupos limpos; use .subbot vincular para escolher os grupos.')
         }
+
+        this.limparRegistrosMortos()
       }
     } catch (e) {
       console.error('[SUBBOTS] Erro ao carregar subbots.json:', e.message)
       this.dados = { subbots: {}, autorizados: [] }
     }
+  }
+
+  // Remove da lista e da VPS os sub-bots que não podem mais conectar: desativados,
+  // deslogados, sem sessão salva ou com número inválido (ex.: sem DDI).
+  limparRegistrosMortos() {
+    let removidos = 0
+    for (const [num, sb] of Object.entries(this.dados.subbots || {})) {
+      const pasta = this.pastaSessao(num)
+      const temSessao = fs.existsSync(path.join(pasta, 'creds.json'))
+      const numeroValido = String(num).startsWith('temp_') || this.validarNumeroComDDI(num).ok
+      if (sb?.ativo === false || !temSessao || !numeroValido) {
+        try { fs.rmSync(pasta, { recursive: true, force: true }) } catch {}
+        delete this.dados.subbots[num]
+        removidos++
+      }
+    }
+    if (removidos) {
+      this.salvarDados()
+      console.log(`[SUBBOTS] 🧹 ${removidos} sub-bot(s) desconectado(s) removido(s) da lista e da VPS.`)
+    }
+  }
+
+  // Sub-bots que aparecem nas listas: só os ONLINE, em ordem de criação.
+  // A posição nesta lista é o número usado em ".subbot del <nº>" e ".subbot <nº> grupos".
+  listaVisivel(sender, isOwnerOrSubdono) {
+    const base = isOwnerOrSubdono ? this.listarSubbots() : this.getSubbotsDoUsuario(sender)
+    return base
+      .filter(sb => sb.online)
+      .sort((a, b) => (a.criadoEm || 0) - (b.criadoEm || 0))
+  }
+
+  // Aceita a posição da lista (#9) ou o número de telefone com DDI
+  resolverSubbot(ref, lista) {
+    const txt = String(ref || '').replace(/^#/, '').trim()
+    const digitos = txt.replace(/\D/g, '')
+    if (!digitos) return null
+    if (digitos.length <= 3) {
+      const idx = parseInt(digitos, 10)
+      return lista[idx - 1] ? { sb: lista[idx - 1], posicao: idx } : null
+    }
+    const pos = lista.findIndex(sb => String(sb.numero) === digitos)
+    return pos >= 0 ? { sb: lista[pos], posicao: pos + 1 } : null
   }
 
   salvarDados() {
@@ -562,9 +606,9 @@ class SubbotManager {
             if (fs.existsSync(sessionPath)) fs.rmSync(sessionPath, { recursive: true, force: true })
           } catch {}
           if (this.activeSubbots.get(num) === subbotEntry) this.activeSubbots.delete(num)
+          // Nunca chegou a conectar: some da lista
           if (this.dados.subbots[num]) {
-            this.dados.subbots[num].ativo = false
-            this.dados.subbots[num].status = 'pareamento_expirado'
+            delete this.dados.subbots[num]
             this.salvarDados()
           }
           console.log(`[SUBBOT ${num}] ⌛ Pareamento não concluído (código ${reason}). Sessão descartada; gere um novo código.`)
@@ -609,14 +653,8 @@ class SubbotManager {
             }
           }
 
-          if (String(num).startsWith('temp_')) {
-            // Registro temporário de um .qr que nunca chegou a conectar: remove de vez
-            // para não poluir a lista de sub-bots.
-            delete this.dados.subbots[num]
-          } else if (this.dados.subbots[num]) {
-            this.dados.subbots[num].ativo = false
-            this.dados.subbots[num].status = 'desconectado_deslogado'
-          }
+          // Deslogado pelo WhatsApp: sai da lista e da VPS (pasta já apagada acima)
+          delete this.dados.subbots[num]
           this.salvarDados()
           this.activeSubbots.delete(num)
         } else {

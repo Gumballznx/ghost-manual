@@ -85,33 +85,10 @@ async function handleDesconectar(sock, msg, from, sender, text) {
     return true
   }
 
-  const cleanNumber = rawNumber.replace(/\D/g, '')
-  const subbot = subbotManager.dados.subbots?.[cleanNumber]
-
-  // Se for revendedor, só pode desconectar se ele mesmo criou
-  if (!isOwnerOrSubdono && subbot && subbot.criadoPor) {
-    const senderClean = String(sender).split('@')[0].split(':')[0].replace(/\D/g, '')
-    const criadorClean = String(subbot.criadoPor).split('@')[0].split(':')[0].replace(/\D/g, '')
-    if (senderClean !== criadorClean) {
-      await sock.sendMessage(from, {
-        text: '❌ *Você só tem permissão para desconectar sub-bots criados por você.*'
-      }, { quoted: msg })
-      return true
-    }
-  }
-
-  await subbotManager.desconectarSubbot(cleanNumber, true)
-  await sock.sendMessage(from, {
-    text: [
-      '╭┈⊰ 👻 『 *SUB-BOT DESCONECTADO* 』',
-      '┊',
-      `┊•.̇𖥨֗🗑️⭟ *Número Removido:* +${cleanNumber}`,
-      '┊•.̇𖥨֗🔄⭟ *Failover:* O bot principal reassumiu o atendimento dos grupos.',
-      '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
-    ].join('\n')
-  }, { quoted: msg })
-
-  return true
+  // Mesma regra do .subbot del: aceita o nº da lista ou o número, e só confirma
+  // a remoção se o sub-bot existia de fato
+  const { executarRemoverSubbot } = require('./subbot')
+  return await executarRemoverSubbot(sock, msg, from, sender, rawNumber, isOwnerOrSubdono)
 }
 
 handleDesconectar.nome = 'desconectar'
