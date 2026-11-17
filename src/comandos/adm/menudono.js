@@ -39,6 +39,7 @@ module.exports = async (sock, msg, from, sender, text) => {
         const bloco2 = [
             '╭┈❁ *🔌 GESTÃO DE GRUPOS & ALUGUEL (A-Z)*',
             '┊',
+            `┊•.̇𖥨֗👻⭟${prefix}addanticoncorrencia todos`,
             `┊•.̇𖥨֗👻⭟${prefix}aluguel`,
             `┊•.̇𖥨֗👻⭟${prefix}bcast`,
             `┊•.̇𖥨֗👻⭟${prefix}delgrupo`,
