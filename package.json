@@ -33,7 +33,8 @@
   "homepage": "https://github.com/Gumballznx/ghost-manual#readme",
   "scripts": {
     "start": "node index.js",
-    "setup": "node setup.js"
+    "setup": "node setup.js",
+    "test": "node --test --test-force-exit test/"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",

@@ -67,10 +67,79 @@ async function coletarAdminsDeOutrosGrupos(sock, currentGroupId) {
     return adminMap
 }
 
+/**
+ * Números dos membros a pôr na lista de concorrentes: todos menos o próprio bot, o dono e os
+ * subdonos. Devolve { novos: [números], ignorados: quantos ficaram de fora }.
+ */
+function numerosParaAnticoncorrencia(participantes, { numeroDoBot = '', eDonoOuSubdono = () => false } = {}) {
+    const novos = []
+    let ignorados = 0
+    let membros = 0
+    const digitos = v => String(v || '').split('@')[0].split(':')[0].replace(/\D/g, '')
+    for (const p of participantes) {
+        const id = p?.id || p?.jid || ''
+        // O WhatsApp identifica o membro pelo número e/ou pelo ID interno (LID); guarda os dois para
+        // o reconhecer em qualquer grupo.
+        const chaves = [...new Set([digitos(p?.phoneNumber), digitos(p?.jid), digitos(id), digitos(p?.lid)].filter(Boolean))]
+        if (!chaves.length) continue
+        if (chaves.some(c => (numeroDoBot && c === numeroDoBot) || eDonoOuSubdono(c)) || eDonoOuSubdono(id)) {
+            ignorados++
+            continue
+        }
+        membros++
+        for (const c of chaves) if (!novos.includes(c)) novos.push(c)
+    }
+    return { novos, ignorados, membros }
+}
+
 module.exports = async function (sock, msg, from, sender, text) {
     const rawTokens = text.trim().split(/\s+/)
     const rawCmd = rawTokens[0].toLowerCase()
     const prefix = config.prefix
+
+    // .addanticoncorrencia todos — põe todos os membros do grupo na lista global de concorrentes.
+    // Só dono e subdono; funciona em qualquer grupo, mesmo sem licença.
+    if (rawCmd === prefix + 'addanticoncorrencia') {
+        if (!from.endsWith('@g.us')) {
+            await sock.sendMessage(from, { text: '❌ Use este comando dentro do grupo.' }, { quoted: msg })
+            return true
+        }
+        if (!isOwnerCheck(sender, msg)) {
+            await sock.sendMessage(from, { text: '❌ Apenas o dono ou um subdono pode usar este comando.' }, { quoted: msg })
+            return true
+        }
+        if ((rawTokens[1] || '').toLowerCase() !== 'todos') {
+            await sock.sendMessage(from, { text: `❌ Use: \`${prefix}addanticoncorrencia todos\`` }, { quoted: msg })
+            return true
+        }
+        let meta
+        try { meta = await sock.groupMetadata(from) } catch {
+            await sock.sendMessage(from, { text: '❌ Não consegui ler os membros do grupo. Tente de novo.' }, { quoted: msg })
+            return true
+        }
+        const numeroDoBot = String(sock.user?.id || '').split('@')[0].split(':')[0].replace(/\D/g, '')
+        const { novos, ignorados, membros } = numerosParaAnticoncorrencia(meta?.participants || [], {
+            numeroDoBot,
+            eDonoOuSubdono: id => isOwnerCheck(id)
+        })
+        const dados = concorrentesStore.loadSync() || {}
+        if (!Array.isArray(dados.global)) dados.global = []
+        const jaEstavam = novos.filter(n => dados.global.includes(n)).length
+        for (const n of novos) if (!dados.global.includes(n)) dados.global.push(n)
+        concorrentesStore.save(dados)
+        await sock.sendMessage(from, {
+            text: [
+                '🚫 *ANTI-CONCORRÊNCIA: GRUPO ADICIONADO*',
+                '────────────────────────',
+                `👥 *Membros na lista:* ${membros}`,
+                `🆕 *Identificadores novos:* ${novos.length - jaEstavam} (número e/ou ID do WhatsApp)`,
+                `🛡️ *Não adicionados (dono, subdonos e o bot):* ${ignorados}`,
+                '',
+                'Serão barrados em todos os grupos com a Anti-Concorrência ativa.'
+            ].join('\n')
+        }, { quoted: msg })
+        return true
+    }
 
     const isAnticoncorrenciaMenu = (
         rawCmd === prefix + 'anticoncorrencia' ||
@@ -235,7 +304,36 @@ module.exports = async function (sock, msg, from, sender, text) {
         return true
     }
 
-    if (isAnticoncorrenciaMenu && rawTokens.length === 1 && rawCmd.includes('anticoncorrencia')) {
+    // .anticoncorrencia listar — quem da lista global está neste grupo, e o total da lista.
+    if (rawCmd.includes('anticoncorrencia') && ['listar', 'lista', 'list'].includes((rawTokens[1] || '').toLowerCase())) {
+        const dados = concorrentesStore.loadSync() || {}
+        const global = new Set((dados.global || []).map(String))
+        const whitelist = new Set(groupConfig[from]?.concorrentes_whitelist || [])
+        let participantes = []
+        try { participantes = (await sock.groupMetadata(from))?.participants || [] } catch {}
+        const digitos = v => String(v || '').split('@')[0].split(':')[0].replace(/\D/g, '')
+        const noGrupo = participantes.filter(p => [p.id, p.phoneNumber, p.jid, p.lid].some(c => global.has(digitos(c))))
+        const linhas = [
+            '🛡️ *LISTA DE CONCORRENTES*',
+            '────────────────────────',
+            `📌 *Proteção neste grupo:* ${groupConfig[from]?.anticoncorrencia ? '🟢 Ativada' : '🔴 Desativada'}`,
+            `🌍 *Na lista global:* ${global.size} registo(s)`,
+            `👥 *Neste grupo:* ${noGrupo.length}`,
+            ''
+        ]
+        noGrupo.forEach((p, i) => {
+            const liberado = [p.id, p.phoneNumber].some(c => whitelist.has(digitos(c)))
+            linhas.push(`*${i + 1}.* @${digitos(p.id)}${liberado ? ' 🟢 *(Liberado neste grupo)*' : ' 🔴'}`)
+        })
+        if (noGrupo.length === 0) linhas.push('✅ Nenhum membro deste grupo está na lista.')
+        linhas.push('', `💡 \`${prefix}concorrentes\` mapeia e \`${prefix}concorrentes banir\` remove.`)
+        await sock.sendMessage(from, { text: linhas.join('\n'), mentions: noGrupo.map(p => p.id) }, { quoted: msg })
+        return true
+    }
+
+    // Menu também para subcomandos desconhecidos (antes o bot ficava calado).
+    const subDesconhecido = rawCmd.includes('anticoncorrencia') && rawTokens.length > 1 && !isToggleCmd && !isPermitirCmd && !isProibirCmd && !isAddManualCmd
+    if ((isAnticoncorrenciaMenu && rawTokens.length === 1 && rawCmd.includes('anticoncorrencia')) || subDesconhecido) {
         const status = groupConfig[from]?.anticoncorrencia ? '🟢 *ATIVADO*' : '🔴 *DESATIVADO*'
         const whitelist = groupConfig[from]?.concorrentes_whitelist || []
         const whitelistStr = whitelist.length > 0 ? whitelist.map(w => `@${w}`).join(', ') : '_Nenhum (bloqueando todos)_'
@@ -250,6 +348,7 @@ module.exports = async function (sock, msg, from, sender, text) {
                 '📋 *Comandos de Gerenciamento:*',
                 `• \`${prefix}anticoncorrencia on\` ➔ Ativa a proteção automática`,
                 `• \`${prefix}anticoncorrencia off\` ➔ Desativa a proteção`,
+                `• \`${prefix}anticoncorrencia listar\` ➔ Mostra quem da lista está no grupo`,
                 `• \`${prefix}concorrentes\` ➔ Mapeia concorrentes presentes no grupo`,
                 `• \`${prefix}concorrentes banir\` ➔ Bane todos os concorrentes mapeados`,
                 `• \`${prefix}concorrente permitir @user\` ➔ Libera um parceiro apenas neste grupo`,
@@ -271,7 +370,18 @@ module.exports = async function (sock, msg, from, sender, text) {
                 .map(p => (p.id || '').split('@')[0].split(':')[0].replace(/\D/g, ''))
 
             const currentCommonMembers = currentParticipants.filter(p => !p.admin)
-            const commonMemberNums = new Set(currentCommonMembers.map(p => (p.id || '').split('@')[0].split(':')[0].replace(/\D/g, '')))
+            // Cada membro comum por número de telefone e por ID interno do WhatsApp (LID), com o seu
+            // ID real: é com ele que se marca (@) e se remove. Antes montava-se "<número>@s.whatsapp.net"
+            // mesmo quando o número era um LID: a marcação mostrava o LID e o ban falhava.
+            const idDoMembro = new Map()
+            for (const p of currentCommonMembers) {
+                const idReal = p.id || ''
+                for (const chave of [idReal, p.phoneNumber, p.jid, p.lid]) {
+                    const digitos = String(chave || '').split('@')[0].split(':')[0].replace(/\D/g, '')
+                    if (digitos && !idDoMembro.has(digitos)) idDoMembro.set(digitos, idReal)
+                }
+            }
+            const commonMemberNums = new Set(idDoMembro.keys())
 
             const adminMap = await coletarAdminsDeOutrosGrupos(sock, from)
 
@@ -281,10 +391,15 @@ module.exports = async function (sock, msg, from, sender, text) {
             const whitelistLocal = new Set(groupConfig[from]?.concorrentes_whitelist || [])
             const concorrentesEncontrados = []
 
+            const jaEncontrados = new Set()
             for (const [adminNum, info] of adminMap.entries()) {
                 if (commonMemberNums.has(adminNum) && !currentAdmins.includes(adminNum)) {
+                    const idReal = idDoMembro.get(adminNum)
+                    if (jaEncontrados.has(idReal)) continue
+                    jaEncontrados.add(idReal)
                     concorrentesEncontrados.push({
                         ...info,
+                        id: idReal,
                         isWhitelisted: whitelistLocal.has(adminNum)
                     })
                 }
@@ -292,10 +407,13 @@ module.exports = async function (sock, msg, from, sender, text) {
 
             for (const manualNum of manualGlobal) {
                 if (commonMemberNums.has(manualNum) && !currentAdmins.includes(manualNum) && !adminMap.has(manualNum)) {
+                    const idReal = idDoMembro.get(manualNum)
+                    if (jaEncontrados.has(idReal)) continue
+                    jaEncontrados.add(idReal)
                     concorrentesEncontrados.push({
-                        id: `${manualNum}@s.whatsapp.net`,
+                        id: idReal,
                         numero: manualNum,
-                        grupos: ['Blacklist Manual Global'],
+                        grupos: ['Lista global'],
                         gruposIds: [],
                         isWhitelisted: whitelistLocal.has(manualNum)
                     })
@@ -326,19 +444,15 @@ module.exports = async function (sock, msg, from, sender, text) {
                 '────────────────────────',
                 `👥 *Grupo:* ${currentGroupMeta.subject}`,
                 `🚨 *Total Detectados:* ${concorrentesEncontrados.length} concorrente(s)`,
-                '',
-                'Estes membros são *Administradores* em outros grupos de vendas concorrentes:',
                 ''
             ]
 
             const mentions = []
             concorrentesEncontrados.forEach((c, idx) => {
                 const statusTag = c.isWhitelisted ? ' 🟢 *(Liberado neste grupo)*' : ' 🔴 *(Bloqueável)*'
-                linhas.push(`*${idx + 1}.* @${c.numero}${statusTag}`)
-                c.grupos.forEach(grp => {
-                    linhas.push(`   └ 📌 Admin em: *${grp}*`)
-                })
-                mentions.push(`${c.numero}@s.whatsapp.net`)
+                // Marca com o ID real do membro: o WhatsApp mostra o nome/contacto da pessoa.
+                linhas.push(`*${idx + 1}.* @${String(c.id).split('@')[0]}${statusTag}`)
+                mentions.push(c.id)
             })
 
             linhas.push('')
@@ -410,7 +524,7 @@ module.exports = async function (sock, msg, from, sender, text) {
         ]
 
         removidos.forEach((r, i) => {
-            relatorio.push(`*${i + 1}.* @${r.numero} (Admin em: _${r.grupos.join(', ')}_)`)
+            relatorio.push(`*${i + 1}.* @${String(r.id || r.numero).split('@')[0]}`)
         })
 
         await sock.sendMessage(from, {
@@ -423,3 +537,5 @@ module.exports = async function (sock, msg, from, sender, text) {
 
     return false
 }
+
+module.exports.numerosParaAnticoncorrencia = numerosParaAnticoncorrencia
