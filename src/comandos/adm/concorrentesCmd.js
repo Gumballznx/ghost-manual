@@ -92,6 +92,56 @@ function numerosParaAnticoncorrencia(participantes, { numeroDoBot = '', eDonoOuS
     return { novos, ignorados, membros }
 }
 
+const digitosDe = v => String(v || '').split('@')[0].split(':')[0].replace(/\D/g, '')
+
+/** Números do próprio bot e dos seus sub-bots: nunca são banidos. */
+function numerosDeBots(sock) {
+    const nums = new Set([digitosDe(sock?.user?.id), digitosDe(sock?.user?.lid)].filter(Boolean))
+    try {
+        const sm = require('../../subbots/subbotManager')
+        if (typeof sm.numerosDosSubbots === 'function') for (const n of sm.numerosDosSubbots()) nums.add(n)
+    } catch {}
+    try {
+        const sm = require('../../bot/subbotManager')
+        if (sm && typeof sm.listarSubbots === 'function') for (const s of sm.listarSubbots()) nums.add(digitosDe(s.numero))
+    } catch {}
+    nums.delete('')
+    return nums
+}
+
+/** Quem pode ser removido: nunca admins, dono/subdonos nem bots. */
+function alvosSeguros(lista, { admins = new Set(), bots = new Set(), eDonoOuSubdono = () => false } = {}) {
+    return lista.filter(c => {
+        const chaves = [digitosDe(c.id), digitosDe(c.numero)].filter(Boolean)
+        return !chaves.some(k => admins.has(k) || bots.has(k) || eDonoOuSubdono(k)) && !eDonoOuSubdono(c.id)
+    })
+}
+
+/** Remove todos de uma vez (em blocos), como o .banghost. Devolve os ids removidos. */
+async function removerEmBloco(sock, groupId, ids, tamanho = 50) {
+    const removidos = new Set()
+    for (let i = 0; i < ids.length; i += tamanho) {
+        const bloco = ids.slice(i, i + tamanho)
+        try {
+            const res = await sock.groupParticipantsUpdate(groupId, bloco, 'remove')
+            if (Array.isArray(res) && res.length) {
+                for (const r of res) {
+                    const ok = String(r?.status ?? '200') === '200'
+                    const id = r?.jid || r?.id
+                    if (ok && id) removidos.add(id)
+                }
+                // Algumas versões não devolvem o id: conta o bloco inteiro se não houve falhas.
+                if (!res.some(r => r?.jid || r?.id) && res.every(r => String(r?.status ?? '200') === '200')) bloco.forEach(id => removidos.add(id))
+            } else {
+                bloco.forEach(id => removidos.add(id))
+            }
+        } catch (err) {
+            console.error('[CONCORRENTES] Erro ao remover bloco:', err.message)
+        }
+    }
+    return removidos
+}
+
 module.exports = async function (sock, msg, from, sender, text) {
     const rawTokens = text.trim().split(/\s+/)
     const rawCmd = rawTokens[0].toLowerCase()
@@ -169,18 +219,24 @@ module.exports = async function (sock, msg, from, sender, text) {
         rawCmd === prefix + 'anticoncorrencia' && (rawTokens[1] === 'add' || rawTokens[1] === 'adicionar')
     )
 
+    const subcomando = (rawTokens[1] || '').toLowerCase()
+    // Só remove com uma palavra de banir explícita (antes QUALQUER palavra, até "listar", banía todos).
     const isActionCmd = (
-        (rawCmd === prefix + 'anticoncorrentes' && rawTokens.length > 1 && rawTokens[1] !== 'on' && rawTokens[1] !== 'off') ||
-        (rawCmd === prefix + 'concorrentes' && rawTokens.length > 1 && rawTokens[1] !== 'on' && rawTokens[1] !== 'off') ||
+        ((rawCmd === prefix + 'anticoncorrentes' || rawCmd === prefix + 'concorrentes') &&
+            ['banir', 'ban', 'remover', 'kick', 'expulsar'].includes(subcomando)) ||
         (rawCmd === prefix + 'banirconcorrentes')
     )
+    const isListarCmd = rawCmd.includes('concorren') && ['listar', 'lista', 'list'].includes(subcomando)
+    // .concorrentes <outra coisa> mostra o menu em vez de fazer algo
+    const isConcorrentesDesconhecido = (rawCmd === prefix + 'concorrentes' || rawCmd === prefix + 'anticoncorrentes') &&
+        rawTokens.length > 1 && !isActionCmd && !isListarCmd && subcomando !== 'on' && subcomando !== 'off'
 
     const isToggleCmd = (
         (rawCmd === prefix + 'anticoncorrencia' || rawCmd === prefix + 'anticoncorrentes') &&
         (rawTokens[1] === 'on' || rawTokens[1] === 'off')
     )
 
-    if (!isAnticoncorrenciaMenu && !isMapCmd && !isPermitirCmd && !isProibirCmd && !isAddManualCmd && !isActionCmd && !isToggleCmd) {
+    if (!isAnticoncorrenciaMenu && !isMapCmd && !isPermitirCmd && !isProibirCmd && !isAddManualCmd && !isActionCmd && !isToggleCmd && !isListarCmd && !isConcorrentesDesconhecido) {
         return false
     }
 
@@ -304,8 +360,8 @@ module.exports = async function (sock, msg, from, sender, text) {
         return true
     }
 
-    // .anticoncorrencia listar — quem da lista global está neste grupo, e o total da lista.
-    if (rawCmd.includes('anticoncorrencia') && ['listar', 'lista', 'list'].includes((rawTokens[1] || '').toLowerCase())) {
+    // .anticoncorrencia listar / .concorrentes listar — quem da lista global está neste grupo. Só mostra, nunca remove.
+    if (isListarCmd) {
         const dados = concorrentesStore.loadSync() || {}
         const global = new Set((dados.global || []).map(String))
         const whitelist = new Set(groupConfig[from]?.concorrentes_whitelist || [])
@@ -332,7 +388,8 @@ module.exports = async function (sock, msg, from, sender, text) {
     }
 
     // Menu também para subcomandos desconhecidos (antes o bot ficava calado).
-    const subDesconhecido = rawCmd.includes('anticoncorrencia') && rawTokens.length > 1 && !isToggleCmd && !isPermitirCmd && !isProibirCmd && !isAddManualCmd
+    const subDesconhecido = isConcorrentesDesconhecido ||
+        (rawCmd.includes('anticoncorrencia') && rawTokens.length > 1 && !isToggleCmd && !isPermitirCmd && !isProibirCmd && !isAddManualCmd)
     if ((isAnticoncorrenciaMenu && rawTokens.length === 1 && rawCmd.includes('anticoncorrencia')) || subDesconhecido) {
         const status = groupConfig[from]?.anticoncorrencia ? '🟢 *ATIVADO*' : '🔴 *DESATIVADO*'
         const whitelist = groupConfig[from]?.concorrentes_whitelist || []
@@ -487,7 +544,19 @@ module.exports = async function (sock, msg, from, sender, text) {
         }
 
         const whitelistLocal = new Set(groupConfig[from]?.concorrentes_whitelist || [])
-        const alvosParaBanir = cache.lista.filter(c => !whitelistLocal.has(c.numero) && !c.isWhitelisted)
+        // Lê os admins de agora (podem ter mudado desde o mapeamento) e nunca remove admins, dono,
+        // subdonos nem bots.
+        const admins = new Set()
+        try {
+            const meta = await sock.groupMetadata(from)
+            for (const p of meta?.participants || []) {
+                if (p.admin) for (const v of [p.id, p.phoneNumber, p.jid, p.lid]) { const d = digitosDe(v); if (d) admins.add(d) }
+            }
+        } catch {}
+        const alvosParaBanir = alvosSeguros(
+            cache.lista.filter(c => !whitelistLocal.has(c.numero) && !c.isWhitelisted),
+            { admins, bots: numerosDeBots(sock), eDonoOuSubdono: id => isOwnerCheck(id) }
+        )
 
         if (alvosParaBanir.length === 0) {
             await sock.sendMessage(from, {
@@ -498,21 +567,14 @@ module.exports = async function (sock, msg, from, sender, text) {
 
         try { await sock.sendMessage(from, { react: { text: '⏳', key: msg.key } }) } catch {}
 
-        const removidos = []
-        const mentions = []
+        // Todos de uma vez (em blocos), não um a um.
+        const idDe = a => a.id || `${a.numero}@s.whatsapp.net`
+        const idsRemovidos = await removerEmBloco(sock, from, alvosParaBanir.map(idDe))
+        const removidos = alvosParaBanir.filter(a => idsRemovidos.has(idDe(a)))
+        const mentions = removidos.map(idDe)
 
-        for (const alvo of alvosParaBanir) {
-            try {
-                await sock.groupParticipantsUpdate(from, [alvo.id || `${alvo.numero}@s.whatsapp.net`], 'remove')
-                removidos.push(alvo)
-                mentions.push(alvo.id || `${alvo.numero}@s.whatsapp.net`)
-            } catch (banErr) {
-                console.error(`[CONCORRENTES] Erro ao remover ${alvo.numero}:`, banErr.message)
-            }
-        }
-
-        const idsRemovidos = new Set(removidos.map(r => r.numero))
-        cache.lista = cache.lista.filter(c => !idsRemovidos.has(c.numero))
+        const numerosRemovidos = new Set(removidos.map(r => r.numero))
+        cache.lista = cache.lista.filter(c => !numerosRemovidos.has(c.numero))
 
         try { await sock.sendMessage(from, { react: { text: '✅', key: msg.key } }) } catch {}
 
@@ -539,3 +601,5 @@ module.exports = async function (sock, msg, from, sender, text) {
 }
 
 module.exports.numerosParaAnticoncorrencia = numerosParaAnticoncorrencia
+module.exports.alvosSeguros = alvosSeguros
+module.exports.removerEmBloco = removerEmBloco
