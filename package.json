@@ -34,7 +34,7 @@
   "scripts": {
     "start": "node index.js",
     "setup": "node setup.js",
-    "test": "node --test --test-force-exit test/"
+    "test": "node --test --test-force-exit"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
