@@ -1,6 +1,7 @@
 const fs = require('fs')
 const path = require('path')
-const { fetchFirebase, putFirebase } = require('./firebaseConfig')
+const { fetchFirebase, putFirebase, patchFirebase } = require('./firebaseConfig')
+const { criarRastreador, eObjetoSimples } = require('./gravacaoPorChave')
 
 const stores = {}
 
@@ -49,6 +50,9 @@ function createStore(name, firebasePath, localFallbackPath, defaultValue = {}, d
     let loaded = false
     let saveTimer = null
     let loadPromise = null
+    // O que este processo viu/gravou no Firebase, por chave de topo: só o que mudou é gravado.
+    // (O ghost-auto usa os mesmos nós; gravar o objeto inteiro apagava o que ele acrescentava.)
+    const rastreador = criarRastreador()
 
     async function load() {
         if (cache !== null && loaded) return cache
@@ -63,6 +67,7 @@ function createStore(name, firebasePath, localFallbackPath, defaultValue = {}, d
                     const fbData = await fetchFirebase(firebasePath)
                     if (fbData !== null && fbData !== undefined) {
                         cache = desanitizeFromFirebase(fbData)
+                        rastreador.definirBase(fbData)
                         loaded = true
                         // Backup local silencioso
                         if (localFallbackPath) {
@@ -89,9 +94,10 @@ function createStore(name, firebasePath, localFallbackPath, defaultValue = {}, d
                             const localData = JSON.parse(fs.readFileSync(fullPath, 'utf8'))
                             cache = localData
                             loaded = true
-
-                            if (FIREBASE_DB_URL) {
-                                putFirebase(firebasePath, sanitizeForFirebase(localData)).catch(() => {})
+                            // Não regrava a cópia local por cima do Firebase: aqui a leitura pode só ter
+                            // falhado, e a cópia local pode estar desatualizada. Só o que mudar depois é gravado.
+                            if (!rastreador.temBase() && localData && typeof localData === 'object') {
+                                rastreador.definirBase(sanitizeForFirebase(localData))
                             }
 
                             return cache
@@ -139,9 +145,20 @@ function createStore(name, firebasePath, localFallbackPath, defaultValue = {}, d
 
             const { FIREBASE_DB_URL } = require('./firebaseConfig')
             if (FIREBASE_DB_URL) {
-                putFirebase(firebasePath, sanitizeForFirebase(cache)).catch(err => {
-                    console.error(`[FIREBASE-DL] ❌ Falha ao salvar ${name} no Firebase:`, err.message)
-                })
+                const payload = sanitizeForFirebase(cache)
+                if (!eObjetoSimples(payload)) {
+                    putFirebase(firebasePath, payload).then(ok => {
+                        if (ok === false) console.error(`[FIREBASE-DL] ❌ Falha ao salvar ${name} no Firebase`)
+                    }).catch(err => console.error(`[FIREBASE-DL] ❌ Falha ao salvar ${name} no Firebase:`, err.message))
+                    return
+                }
+                // Só as chaves que ESTE processo mudou; as do outro bot nunca são tocadas.
+                const { alteracoes, atual } = rastreador.diferencas(payload)
+                if (Object.keys(alteracoes).length === 0) return
+                patchFirebase(firebasePath, alteracoes).then(ok => {
+                    if (ok) rastreador.confirmar(atual)
+                    else console.error(`[FIREBASE-DL] ❌ Falha ao salvar ${name} no Firebase`)
+                }).catch(err => console.error(`[FIREBASE-DL] ❌ Falha ao salvar ${name} no Firebase:`, err.message))
             }
         }
 
@@ -217,6 +234,7 @@ function createStore(name, firebasePath, localFallbackPath, defaultValue = {}, d
             if (fs.existsSync(fullPath)) {
                 try {
                     cache = JSON.parse(fs.readFileSync(fullPath, 'utf8'))
+                    if (!rastreador.temBase() && cache && typeof cache === 'object') rastreador.definirBase(sanitizeForFirebase(cache))
                     return cache
                 } catch { }
             }
