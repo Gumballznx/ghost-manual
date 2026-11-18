@@ -39,7 +39,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     ].join('\n')
 
     const bloco1 = [
-        '╭┈❁ *📊 TABELAS & PREÇOS (A-Z)*',
+        '╭┈❁ *📊 TABELAS & PREÇOS*',
         '┊',
         `┊•.̇𖥨֗👻⭟${prefix}configurar listar`,
         `┊•.̇𖥨֗👻⭟${prefix}configurar saldo`,
@@ -52,7 +52,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     ].join('\n')
 
     const bloco2 = [
-        '╭┈❁ *📦 GESTÃO DE VENDAS (A-Z)*',
+        '╭┈❁ *📦 GESTÃO DE VENDAS*',
         '┊',
         `┊•.̇𖥨֗👻⭟${prefix}aumentarlimite`,
         `┊•.̇𖥨֗👻⭟${prefix}compras`,
@@ -62,7 +62,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     ].join('\n')
 
     const bloco3 = [
-        '╭┈❁ *🛡️ SEGURANÇA & PROTEÇÃO (A-Z)*',
+        '╭┈❁ *🛡️ SEGURANÇA & PROTEÇÃO*',
         '┊',
         `┊•.̇𖥨֗👻⭟${prefix}antiaudio [on/off]`,
         `┊•.̇𖥨֗👻⭟${prefix}antibot [on/off]`,
@@ -80,7 +80,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     ].join('\n')
 
     const bloco4 = [
-        '╭┈❁ *👥 GESTÃO DO GRUPO (A-Z)*',
+        '╭┈❁ *👥 GESTÃO DO GRUPO*',
         '┊',
         `┊•.̇𖥨֗👻⭟${prefix}alarme`,
         `┊•.̇𖥨֗👻⭟${prefix}aviso [texto]`,
@@ -99,10 +99,13 @@ module.exports = async (sock, msg, from, sender, text) => {
     ].join('\n')
 
     const bloco5 = [
-        '╭┈❁ *🔑 LICENÇA & CONFIGURAÇÕES (A-Z)*',
+        '╭┈❁ *🔑 LICENÇA & CONFIGURAÇÕES*',
         '┊',
         `┊•.̇𖥨֗👻⭟${prefix}ativarlicenca [chave]`,
         `┊•.̇𖥨֗👻⭟${prefix}bot [on/off]`,
+        `┊•.̇𖥨֗👻⭟${prefix}menuconfigurar`,
+        `┊•.̇𖥨֗👻⭟${prefix}menunano`,
+        `┊•.̇𖥨֗👻⭟${prefix}menunanos`,
         `┊•.̇𖥨֗👻⭟${prefix}ping`,
         `┊•.̇𖥨֗👻⭟${prefix}renovar`,
         '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'

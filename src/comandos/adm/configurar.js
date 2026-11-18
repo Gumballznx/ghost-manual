@@ -71,76 +71,8 @@ module.exports = async (sock, msg, from, sender, text) => {
     const cleanBody = rawBody.substring((prefix + 'configurar').length).trim()
 
     if (!cleanBody || cleanBody.toLowerCase() === 'ajuda' || cleanBody.toLowerCase() === 'help') {
-        const header = [
-            '╭┈⊰ 👻 『 *PAINEL DE CONFIGURAÇÃO* 』',
-            `┊Olá, ${userName}!`,
-            '┊_Configurações e tabelas exclusivas deste grupo_',
-            '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
-        ].join('\n')
-
-        const bloco1 = [
-            '╭┈❁ *📊 1. TABELAS DE MEGAS*',
-            '┊',
-            `┊•.̇𖥨֗👻⭟${prefix}configurar tabela/[texto da tabela]`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar diarios/[texto]`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar semanal/[texto]`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar mensal/[texto]`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar diamante/[texto]`,
-            '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
-        ].join('\n')
-
-        const bloco2 = [
-            '╭┈❁ *💰 2. TABELA DE SALDO (CRÉDITO)*',
-            '┊',
-            `┊•.̇𖥨֗👻⭟${prefix}configurar saldo/[texto da tabela]`,
-            '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
-        ].join('\n')
-
-        const bloco3 = [
-            '╭┈❁ *👀 3. VISUALIZAR TABELAS ATUAIS*',
-            '┊',
-            `┊•.̇𖥨֗👻⭟${prefix}configurar ver tabela`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar ver diarios`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar ver semanal`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar ver mensal`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar ver diamante`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar ver saldo`,
-            '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
-        ].join('\n')
-
-        const bloco4 = [
-            '╭┈❁ *🗑️ 4. REMOVER TABELAS*',
-            '┊',
-            `┊•.̇𖥨֗👻⭟${prefix}configurar remover tabela`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar remover diarios`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar remover semanal`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar remover mensal`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar remover diamante`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar remover saldo`,
-            '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
-        ].join('\n')
-
-        const bloco5 = [
-            '╭┈❁ *💳 5. CONTAS DE PAGAMENTO*',
-            '┊',
-            `┊•.̇𖥨֗👻⭟${prefix}configurar E-mola [número] [nome]`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar M-Pesa [número] [nome]`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar listar`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar remover E-mola [número]`,
-            `┊•.̇𖥨֗👻⭟${prefix}configurar remover M-Pesa [número]`,
-            '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
-        ].join('\n')
-
-        const footer = [
-            '╭┈⊰ 🔒 *ISOLAMENTO TOTAL*',
-            '┊As configurações aqui aplicam-se apenas a este grupo.',
-            '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
-        ].join('\n')
-
-        const ajuda = [header, '', bloco1, '', bloco2, '', bloco3, '', bloco4, '', bloco5, '', footer].join('\n')
-
-        await sock.sendMessage(from, { text: ajuda }, { quoted: msg })
-        return true
+        const menuConfigurarHandler = require('./menuconfigurar')
+        return await menuConfigurarHandler(sock, msg, from, sender, prefix + 'menuconfigurar')
     }
 
     if (/^tabela(?:\/|\s+)/i.test(cleanBody)) {

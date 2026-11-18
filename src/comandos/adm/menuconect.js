@@ -36,7 +36,7 @@ async function handleMenuConect(sock, msg, from, sender, text) {
   ].join('\n')
 
   const blocoConexao = [
-    '╭┈❁ *🔌 MÉTODOS DE CONEXÃO (A-Z)*',
+    '╭┈❁ *🔌 MÉTODOS DE CONEXÃO*',
     '┊',
     `┊•.̇𖥨֗👻⭟${prefix}conect <numero>`,
     `┊•.̇𖥨֗👻⭟${prefix}qr`,

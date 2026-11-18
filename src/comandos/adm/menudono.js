@@ -22,7 +22,7 @@ module.exports = async (sock, msg, from, sender, text) => {
         ].join('\n');
 
         const bloco1 = [
-            '╭┈❁ *👑 CONTROLE GLOBAL (A-Z)*',
+            '╭┈❁ *👑 CONTROLE GLOBAL*',
             '┊',
             `┊•.̇𖥨֗👻⭟${prefix}off`,
             `┊•.̇𖥨֗👻⭟${prefix}offall`,
@@ -37,7 +37,7 @@ module.exports = async (sock, msg, from, sender, text) => {
         ].join('\n');
 
         const bloco2 = [
-            '╭┈❁ *🔌 GESTÃO DE GRUPOS & ALUGUEL (A-Z)*',
+            '╭┈❁ *🔌 GESTÃO DE GRUPOS & ALUGUEL*',
             '┊',
             `┊•.̇𖥨֗👻⭟${prefix}addanticoncorrencia todos`,
             `┊•.̇𖥨֗👻⭟${prefix}aluguel`,
@@ -53,7 +53,7 @@ module.exports = async (sock, msg, from, sender, text) => {
         ].join('\n');
 
         const bloco3 = [
-            '╭┈❁ *🔑 LICENÇAS DO BOT (A-Z)*',
+            '╭┈❁ *🔑 LICENÇAS DO BOT*',
             '┊',
             `┊•.̇𖥨֗👻⭟${prefix}diminuirlicenca grupo [dias]`,
             `┊•.̇𖥨֗👻⭟${prefix}gerarlicenca [dias]`,
