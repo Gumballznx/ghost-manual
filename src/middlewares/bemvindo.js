@@ -46,7 +46,20 @@ module.exports = async (sock, update) => {
       try {
         const mencoesTexto = update.participants.map(p => `@${p.split('@')[0].split(':')[0]}`).join(', ')
 
-        const texto = `${mencoesTexto}\n╭━━━┛ 🎉 *SEJA BEM-VINDO AO MELHOR GRUPO DE INTERNET* 🚀\n┃\n┃ 📖 Para ver a tabela ➝ tabela\n┃ 💳 Para ver as formas de pagamento ➝ pagamento\n┃\n┃ 📌 Fica à vontade para perguntar 📌\n╰━━━━━━━━━━━━━━━━━━━━━`
+        const texto = [
+          `${mencoesTexto}`,
+          '╭┈⊰ 🎉 『 *SEJA BEM-VINDO(A)* 』',
+          '┊Olá, seja muito bem-vindo(a) ao grupo!',
+          '┊',
+          '┊📖 *Para consultar os preços:*',
+          '┊•.̇𖥨֗👻⭟ Digite: *tabela*',
+          '┊',
+          '┊💳 *Para formas de pagamento:*',
+          '┊•.̇𖥨֗👻⭟ Digite: *pagamento*',
+          '┊',
+          '┊📌 *Sinta-se à vontade para perguntar!*',
+          '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
+        ].join('\n')
 
         let profilePic = null
         try {
