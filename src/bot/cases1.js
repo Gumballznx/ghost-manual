@@ -524,6 +524,7 @@ module.exports = async function (sock, msg) {
             `${config.prefix}antimenção`,
             `${config.prefix}antifurtivo`,
             `${config.prefix}anticoncorrencia`,
+            `${config.prefix}addanticoncorrencia`,
             `${config.prefix}anticoncorrentes`,
             `${config.prefix}concorrentes`,
             `${config.prefix}concorrente`,
