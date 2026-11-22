@@ -5,10 +5,63 @@ const { getSuporteNumber, setSuporteCache } = require('../../utils/configManager
 const { putFirebase } = require('../../utils/firebaseConfig')
 const fs = require('fs')
 
+/** Nome do suporte mostrado no .empregado: guardado no Firebase (bot_data/suporteNome), igual nos dois bots. */
+function limparNomeSuporte(tokens) {
+  return tokens.join(' ').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 40)
+}
+
+async function guardarNomeSuporte(nome) {
+  try {
+    await putFirebase('bot_data/suporteNome', nome)
+    return true
+  } catch (e) {
+    console.error('[SETSUPORTE] Erro ao salvar o nome no Firebase:', e.message)
+    return false
+  }
+}
+
+function caixaSuporteNome(nome, ok) {
+  return [
+    '╭┈⊰ 👻 『 *SUPORTE ATUALIZADO* 』',
+    '┊🤖 GHOST BOT',
+    '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯',
+    '',
+    ok ? '╭┈❁ *👤 NOME DO SUPORTE*' : '╭┈❁ *⚠️ NÃO FOI POSSÍVEL GUARDAR O NOME*',
+    `┊•.̇𖥨֗👻⭟ *Nome:* ${nome}`,
+    ok ? '┊•.̇𖥨֗👻⭟ Vale já nos dois bots (.empregado).' : '┊•.̇𖥨֗👻⭟ Tente de novo em instantes.',
+    '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
+  ].join('\n')
+}
+
 module.exports = async function(sock, msg, from, sender, text) {
   const prefix = config.prefix || '.'
   const rawTokens = (text || '').trim().split(/\s+/)
   const cmd = (rawTokens[0] || '').toLowerCase()
+
+  if (cmd === prefix + 'setsuportenome') {
+    if (!isLeaderCheck(sender, msg)) {
+      await sock.sendMessage(from, { text: 'Apenas o líder supremo / dono principal do bot pode definir o nome do suporte.' }, { quoted: msg })
+      return true
+    }
+    const nomeNovo = limparNomeSuporte(rawTokens.slice(1))
+    if (!nomeNovo) {
+      await sock.sendMessage(from, {
+        text: [
+          '╭┈⊰ 👻 『 *AJUDA DE COMANDO* 』',
+          '┊⚙️ Nome do Suporte',
+          '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯',
+          '',
+          'Informe o nome do suporte:',
+          `👉 *Exemplo:* \`${prefix}setsuportenome Antonio\``,
+          `👉 *Número e nome de uma vez:* \`${prefix}setsuporte 25884xxxxxxx Antonio\``
+        ].join('\n')
+      }, { quoted: msg })
+      return true
+    }
+    const okNome = await guardarNomeSuporte(nomeNovo)
+    await sock.sendMessage(from, { text: caixaSuporteNome(nomeNovo, okNome) }, { quoted: msg })
+    return true
+  }
 
   if (cmd === prefix + 'setsuporte') {
     if (!isLeaderCheck(sender, msg)) {
@@ -41,6 +94,10 @@ module.exports = async function(sock, msg, from, sender, text) {
 
     setSuporteCache(novoNum)
 
+    // Nome opcional depois do número: .setsuporte 25884xxxxxxx Antonio
+    const nomeJunto = limparNomeSuporte(rawTokens.slice(2))
+    const nomeGuardado = nomeJunto ? await guardarNomeSuporte(nomeJunto) : null
+
     try {
       const cfgPath = path.join(__dirname, '../../../data/config.json')
       let cfgData = {}
@@ -68,6 +125,7 @@ module.exports = async function(sock, msg, from, sender, text) {
         '╭┈❁ *📞 CONTATO OFICIAL*',
         `┊•.̇𖥨֗👻⭟ *Número:* ${novoNum}`,
         `┊•.̇𖥨֗👻⭟ *Link:* wa.me/${novoNum}`,
+        ...(nomeJunto ? [`┊•.̇𖥨֗👻⭟ *Nome:* ${nomeJunto}${nomeGuardado ? '' : ' (não foi possível guardar)'}`] : []),
         '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
       ].join('\n')
     }, { quoted: msg })
