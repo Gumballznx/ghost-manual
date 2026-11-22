@@ -631,7 +631,9 @@ async function connectSocket() {
         } else {
           console.log(`${YELLOW}⚠️ Nenhum sub-bot ativo. Parando o bot no PM2 para nova configuração...${RESET}`)
           const { exec } = require('child_process')
-          exec('pm2 stop ghost-manual || pm2 stop ghost-bot', (err) => {
+          // Para SOMENTE este processo (mesmo bot roda com nomes diferentes no PM2)
+          const selfPm2 = process.env.pm_id !== undefined ? process.env.pm_id : (process.env.name || '')
+          exec(selfPm2 !== '' ? `pm2 stop ${selfPm2}` : 'true', (err) => {
             if (err) console.error('Erro ao parar via PM2:', err.message)
             process.exit(0)
           })

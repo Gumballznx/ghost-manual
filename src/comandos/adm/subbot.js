@@ -2,6 +2,7 @@ const path = require('path')
 const config = require(path.join(__dirname, '../../../data/config.json'))
 const { isLeaderCheck, isSubdonoCheck } = require('../../utils/baileys')
 const subbotManager = require('../../bot/subbotManager')
+const { cardGhost } = require('../../utils/cardGhost')
 
 module.exports = async (sock, msg, from, sender, text) => {
   const prefix = config.prefix || '.'
@@ -71,7 +72,7 @@ module.exports = async (sock, msg, from, sender, text) => {
   if (subOpcao === 'autorizar' || subOpcao === 'auth' || subOpcao === 'permitir' || subOpcao === 'add') {
     if (!isOwnerOrSubdono) {
       await sock.sendMessage(from, {
-        text: '❌ *Apenas o Dono ou Subdono podem autorizar novos usuários.*'
+        text: cardGhost('ERRO', [['❌', `*Apenas o Dono ou Subdono podem autorizar novos usuários.*`]])
       }, { quoted: msg })
       return true
     }
@@ -89,7 +90,7 @@ module.exports = async (sock, msg, from, sender, text) => {
 
     if (!rawNumber) {
       await sock.sendMessage(from, {
-        text: `❌ *Informe o número, mencione @user ou responda à mensagem dele.*\nExemplo: \`${prefix}subbot autorizar 25884xxxxxxx\``
+        text: cardGhost('ERRO', [['❌', `*Informe o número, mencione @user ou responda à mensagem dele.*`], ['💡', `Exemplo: \`${prefix}subbot autorizar 25884xxxxxxx\``]])
       }, { quoted: msg })
       return true
     }
@@ -112,7 +113,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     const validacaoAut = subbotManager.validarNumeroComDDI(rawNumber)
     if (!validacaoAut.ok) {
       await sock.sendMessage(from, {
-        text: `❌ *${validacaoAut.erro}*\nExemplo: \`${prefix}subbot autorizar 258841234567\` ou mencione o @usuário.`
+        text: cardGhost('ERRO', [['❌', `*${validacaoAut.erro}*`], ['💡', `Exemplo: \`${prefix}subbot autorizar 258841234567\` ou mencione o @usuário.`]])
       }, { quoted: msg })
       return true
     }
@@ -134,14 +135,16 @@ module.exports = async (sock, msg, from, sender, text) => {
           text: [
             '╭┈⊰ 👻 『 *USUÁRIO AUTORIZADO* 』',
             '┊',
-            `┊•.̇𖥨֗✅⭟ Usuário *+${resultado.numero}* autorizado com sucesso!`,
-            `┊•.̇𖥨֗📱⭟ Agora ele tem permissão para usar \`${prefix}conect\` e gerenciar sub-bots.`,
+            `┊•.̇𖥨֗✅⭟ Usuário *+${resultado.numero}* autorizado`,
+            '┊               com sucesso!',
+            '┊•.̇𖥨֗📱⭟ Agora ele tem permissão para usar',
+            `┊               \`${prefix}conect\` e gerenciar sub-bots.`,
             '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
           ].join('\n')
         }, { quoted: msg })
       }
     } catch (e) {
-      await sock.sendMessage(from, { text: `❌ ${e.message}` }, { quoted: msg })
+      await sock.sendMessage(from, { text: cardGhost('ERRO', [['❌', `${e.message}`]]) }, { quoted: msg })
     }
     return true
   }
@@ -149,7 +152,7 @@ module.exports = async (sock, msg, from, sender, text) => {
   if (subOpcao === 'desautorizar' || subOpcao === 'unauth' || subOpcao === 'revogar' || subOpcao === 'remove') {
     if (!isOwnerOrSubdono) {
       await sock.sendMessage(from, {
-        text: '❌ *Apenas o Dono ou Subdono podem desautorizar usuários.*'
+        text: cardGhost('ERRO', [['❌', `*Apenas o Dono ou Subdono podem desautorizar usuários.*`]])
       }, { quoted: msg })
       return true
     }
@@ -167,7 +170,7 @@ module.exports = async (sock, msg, from, sender, text) => {
 
     if (!rawNumber) {
       await sock.sendMessage(from, {
-        text: `❌ *Informe o número a desautorizar.*\nExemplo: \`${prefix}subbot desautorizar 25884xxxxxxx\``
+        text: cardGhost('ERRO', [['❌', `*Informe o número a desautorizar.*`], ['💡', `Exemplo: \`${prefix}subbot desautorizar 25884xxxxxxx\``]])
       }, { quoted: msg })
       return true
     }
@@ -208,14 +211,14 @@ module.exports = async (sock, msg, from, sender, text) => {
   if (subOpcao === 'autorizados' || subOpcao === 'authlist') {
     if (!isOwnerOrSubdono) {
       await sock.sendMessage(from, {
-        text: '❌ *Apenas o Dono ou Subdono podem consultar a lista de autorizados.*'
+        text: cardGhost('ERRO', [['❌', `*Apenas o Dono ou Subdono podem consultar a lista de autorizados.*`]])
       }, { quoted: msg })
       return true
     }
     const lista = subbotManager.listarAutorizados()
     if (!lista.length) {
       await sock.sendMessage(from, {
-        text: 'ℹ️ *Nenhum revendedor/usuário autorizado no momento.* Apenas Dono e Subdonos têm acesso.'
+        text: cardGhost('AVISO', [['ℹ️', `*Nenhum revendedor/usuário autorizado no momento.* Apenas Dono e Subdonos têm acesso.`]])
       }, { quoted: msg })
       return true
     }
@@ -276,7 +279,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     const rawNumber = args[1]
     if (!rawNumber) {
       await sock.sendMessage(from, {
-        text: `❌ *Informe o sub-bot a remover.*\nExemplo: \`${prefix}delsubbot 2\` (nº da lista do ${prefix}subbots)`
+        text: cardGhost('ERRO', [['❌', `*Informe o sub-bot a remover.*`], ['💡', `Exemplo: \`${prefix}delsubbot 2\` (nº da lista do ${prefix}subbots)`]])
       }, { quoted: msg })
       return true
     }
@@ -341,7 +344,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     const rawNumber = args[2]
     if (!rawNumber) {
       await sock.sendMessage(from, {
-        text: `❌ *Informe o número com DDI.*\nExemplo: \`${prefix}subbot conect 258841234567\``
+        text: cardGhost('ERRO', [['❌', `*Informe o número com DDI.*`], ['💡', `Exemplo: \`${prefix}subbot conect 258841234567\``]])
       }, { quoted: msg })
       return true
     }
@@ -353,7 +356,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     const rawNumber = args[2]
     if (!rawNumber) {
       await sock.sendMessage(from, {
-        text: `❌ *Informe o sub-bot a remover.*\nExemplo: \`${prefix}subbot del 2\` (nº da lista do ${prefix}subbots)`
+        text: cardGhost('ERRO', [['❌', `*Informe o sub-bot a remover.*`], ['💡', `Exemplo: \`${prefix}subbot del 2\` (nº da lista do ${prefix}subbots)`]])
       }, { quoted: msg })
       return true
     }
@@ -377,7 +380,7 @@ module.exports = async (sock, msg, from, sender, text) => {
 
     if (!alvoJid && !alvoLink && !isGroup) {
       await sock.sendMessage(from, {
-        text: `❌ *Informe o grupo.*\nUse dentro do grupo: \`${prefix}subbot vincular\`\nOu daqui: \`${prefix}subbot vincular <link do grupo ou JID>\``
+        text: cardGhost('ERRO', [['❌', `*Informe o grupo.*`], ['💡', `Use dentro do grupo: \`${prefix}subbot vincular\``], `Ou daqui: \`${prefix}subbot vincular <link do grupo ou JID>\``])
       }, { quoted: msg })
       return true
     }
@@ -391,7 +394,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     }
     if (!rawNumber) {
       await sock.sendMessage(from, {
-        text: `❌ *Informe o número do sub-bot.*\nExemplo: \`${prefix}subbot vincular 258841234567\``
+        text: cardGhost('ERRO', [['❌', `*Informe o número do sub-bot.*`], ['💡', `Exemplo: \`${prefix}subbot vincular 258841234567\``]])
       }, { quoted: msg })
       return true
     }
@@ -401,7 +404,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     if (!isOwnerOrSubdono) {
       const meus = subbotManager.getSubbotsDoUsuario(sender)
       if (!meus.some(s => s.numero === numLimpo)) {
-        await sock.sendMessage(from, { text: '⛔ Você só pode vincular grupos aos seus próprios sub-bots.' }, { quoted: msg })
+        await sock.sendMessage(from, { text: cardGhost('ACESSO RESTRITO', [['⛔', `Você só pode vincular grupos aos seus próprios sub-bots.`]]) }, { quoted: msg })
         return true
       }
     }
@@ -409,7 +412,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     const ativo = subbotManager.getSubbotPorNumero(numLimpo)
     if (!ativo?.sock || ativo.status !== 'online') {
       await sock.sendMessage(from, {
-        text: `❌ *O sub-bot +${numLimpo} não está online.*\nConecte-o com \`${prefix}conect ${numLimpo}\` e tente de novo.`
+        text: cardGhost('ERRO', [['❌', `*O sub-bot +${numLimpo} não está online.*`], ['💡', `Conecte-o com \`${prefix}conect ${numLimpo}\` e tente de novo.`]])
       }, { quoted: msg })
       return true
     }
@@ -423,7 +426,7 @@ module.exports = async (sock, msg, from, sender, text) => {
         gid = info?.id ? (String(info.id).endsWith('@g.us') ? info.id : info.id + '@g.us') : null
       } catch {}
       if (!gid) {
-        await sock.sendMessage(from, { text: '❌ *Link de grupo inválido ou expirado.*' }, { quoted: msg })
+        await sock.sendMessage(from, { text: cardGhost('ERRO', [['❌', `*Link de grupo inválido ou expirado.*`]]) }, { quoted: msg })
         return true
       }
     }
@@ -432,7 +435,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     try { meta = await ativo.sock.groupMetadata(gid) } catch {}
     if (!meta?.participants?.length) {
       await sock.sendMessage(from, {
-        text: `❌ *O sub-bot +${numLimpo} não está nesse grupo.*\nAdicione o número do sub-bot ao grupo e tente de novo.`
+        text: cardGhost('ERRO', [['❌', `*O sub-bot +${numLimpo} não está nesse grupo.*`], ['💡', `Adicione o número do sub-bot ao grupo e tente de novo.`]])
       }, { quoted: msg })
       return true
     }
@@ -454,12 +457,12 @@ module.exports = async (sock, msg, from, sender, text) => {
   // 5. .subbot desvincular (desvincula o grupo atual do sub-bot)
   if (subOpcao === 'desvincular' || subOpcao === 'soltar') {
     if (!isGroup) {
-      await sock.sendMessage(from, { text: '❌ Este comando só pode ser usado dentro de um grupo.' }, { quoted: msg })
+      await sock.sendMessage(from, { text: cardGhost('ERRO', [['❌', `Este comando só pode ser usado dentro de um grupo.`]]) }, { quoted: msg })
       return true
     }
     subbotManager.desvincularGrupo(from)
     await sock.sendMessage(from, {
-      text: `🔄 *Grupo Desvinculado!*\n\nO bot principal reassumiu o atendimento deste grupo.`
+      text: cardGhost('ATUALIZADO', [['🔄', `*Grupo Desvinculado!*`], null, `O bot principal reassumiu o atendimento deste grupo.`])
     }, { quoted: msg })
     return true
   }
@@ -510,7 +513,7 @@ async function listarGruposSessoes(sock, msg, from, sender, args, isOwnerOrSubdo
       const sb = subbotManager.dados.subbots?.[numeroFiltro]
       if (!sb) {
         await sock.sendMessage(from, {
-          text: `❌ *Nenhuma sessão encontrada para o número +${numeroFiltro}.*`
+          text: cardGhost('ERRO', [['❌', `*Nenhuma sessão encontrada para o número +${numeroFiltro}.*`]])
         }, { quoted: msg })
         return true
       }
@@ -521,7 +524,7 @@ async function listarGruposSessoes(sock, msg, from, sender, args, isOwnerOrSubdo
 
     if (!subbotsParaExibir.length) {
       await sock.sendMessage(from, {
-        text: 'ℹ️ *Nenhuma sessão de sub-bot cadastrada no momento.*'
+        text: cardGhost('AVISO', [['ℹ️', `*Nenhuma sessão de sub-bot cadastrada no momento.*`]])
       }, { quoted: msg })
       return true
     }
@@ -590,7 +593,7 @@ async function listarGruposSessoes(sock, msg, from, sender, args, isOwnerOrSubdo
     sessoesParaExibir = minhasSessoes.filter(s => s.numero === numeroFiltro)
     if (!sessoesParaExibir.length) {
       await sock.sendMessage(from, {
-        text: '⛔ *Acesso Restrito:* Você só tem permissão para visualizar os grupos pertencentes à sua própria sessão.'
+        text: cardGhost('ACESSO RESTRITO', [['⛔', `*Acesso Restrito:* Você só tem permissão para visualizar os grupos pertencentes à sua própria sessão.`]])
       }, { quoted: msg })
       return true
     }
@@ -639,7 +642,7 @@ async function executarConexaoSubbot(sock, msg, from, sender, rawNumber, prefix)
   const validacao = subbotManager.validarNumeroComDDI(cleanNumber)
   if (!validacao.ok) {
     await sock.sendMessage(from, {
-      text: `❌ *${validacao.erro}*\nExemplo: \`${prefix}conect 258841234567\``
+      text: cardGhost('ERRO', [['❌', `*${validacao.erro}*`], ['💡', `Exemplo: \`${prefix}conect 258841234567\``]])
     }, { quoted: msg })
     return true
   }
@@ -647,13 +650,13 @@ async function executarConexaoSubbot(sock, msg, from, sender, rawNumber, prefix)
   const existing = subbotManager.getSubbotPorNumero(cleanNumber)
   if (existing && existing.status === 'online') {
     await sock.sendMessage(from, {
-      text: `⚠️ *O sub-bot +${cleanNumber} já está conectado e online!*`
+      text: cardGhost('SUB-BOT JÁ CONECTADO', [['📱', `*Número:* +${cleanNumber}`], ['🟢', '*Status:* ONLINE']])
     }, { quoted: msg })
     return true
   }
 
   await sock.sendMessage(from, {
-    text: `⏳ *Iniciando conexão para o número +${cleanNumber}...*\n\nGerando código de pareamento, por favor aguarde alguns segundos...`
+    text: cardGhost('SUB-BOT: INICIANDO CONEXÃO', [['📱', `*Número:* +${cleanNumber}`], ['⏳', 'Gerando o código de pareamento...'], ['💡', 'Aguarde alguns segundos.']])
   }, { quoted: msg })
 
   try {
@@ -698,21 +701,21 @@ async function executarConexaoSubbot(sock, msg, from, sender, rawNumber, prefix)
       onConnected: async (num) => {
         try {
           await sock.sendMessage(from, {
-            text: `🎉 *SUB-BOT CONECTADO COM SUCESSO!*\n\n📱 Chip: *+${num}*\n🔗 Ele ainda não atende nenhum grupo.\n\n💡 *Para ativar num grupo:*\n1. Adicione o número +${num} ao grupo.\n2. No grupo, envie \`${prefix}subbot vincular\`\n   ou daqui: \`${prefix}subbot vincular <link do grupo>\``
+            text: cardGhost('SUB-BOT CONECTADO COM SUCESSO', [['📱', `*Número Conectado:* +${num}`], ['🟢', '*Status:* ONLINE'], ['🔗', 'Ainda não atende nenhum grupo.'], null, ['💡', '*Para ativar num grupo:*'], '1. Adicione o número ao grupo', `2. No grupo envie ${prefix}subbot vincular`, `Ou daqui: ${prefix}subbot vincular <link do grupo>`])
           })
         } catch {}
       },
       onError: async (err) => {
         try {
           await sock.sendMessage(from, {
-            text: `❌ *Erro ao gerar código para +${cleanNumber}:*\n${err.message || err}\n\n💡 Tente novamente usando: \`${prefix}conect ${cleanNumber}\``
+            text: cardGhost('ERRO NA CONEXÃO', [['📱', `*Número:* +${cleanNumber}`], ['⚠️', err.message || String(err)], ['🔄', `Gere um novo com ${prefix}conect ${cleanNumber}`]])
           }, { quoted: msg })
         } catch {}
       }
     })
   } catch (err) {
     await sock.sendMessage(from, {
-      text: `❌ *Erro ao iniciar conexão do sub-bot:* ${err.message}`
+      text: cardGhost('ERRO', [['❌', `*Erro ao iniciar conexão do sub-bot:* ${err.message}`]])
     }, { quoted: msg })
   }
 
@@ -735,7 +738,7 @@ async function executarRemoverSubbot(sock, msg, from, sender, ref, isOwnerOrSubd
 
   if (!alvo) {
     await sock.sendMessage(from, {
-      text: `❌ *Sub-bot ${String(ref).replace(/^#/, '').length <= 3 ? '#' + String(ref).replace(/^#/, '') : '+' + String(ref).replace(/\D/g, '')} não existe.*\nVeja a lista com \`${prefix}subbots\`.`
+      text: cardGhost('ERRO', [['❌', `*Sub-bot ${String(ref).replace(/^#/, '').length <= 3 ? '#' + String(ref).replace(/^#/, '') : '+' + String(ref).replace(/\D/g, '')} não existe.*`], ['💡', `Veja a lista com \`${prefix}subbots\`.`]])
     }, { quoted: msg })
     return true
   }
@@ -748,7 +751,7 @@ async function executarRemoverSubbot(sock, msg, from, sender, ref, isOwnerOrSubd
     const senderClean = String(sender).split('@')[0].split(':')[0].replace(/\D/g, '')
     const criadorClean = String(registro.criadoPor).split('@')[0].split(':')[0].replace(/\D/g, '')
     if (senderClean !== criadorClean) {
-      await sock.sendMessage(from, { text: '❌ *Você só pode remover os sub-bots criados por você.*' }, { quoted: msg })
+      await sock.sendMessage(from, { text: cardGhost('ERRO', [['❌', `*Você só pode remover os sub-bots criados por você.*`]]) }, { quoted: msg })
       return true
     }
   }
@@ -777,7 +780,7 @@ async function enviarLinksGrupos(sock, msg, from, sender, ref, isOwnerOrSubdono,
   const alvo = subbotManager.resolverSubbot(ref, lista)
   if (!alvo) {
     await sock.sendMessage(from, {
-      text: `❌ *Sub-bot #${String(ref).replace(/^#/, '')} não existe.*\nVeja a lista com \`${prefix}subbots\`.`
+      text: cardGhost('ERRO', [['❌', `*Sub-bot #${String(ref).replace(/^#/, '')} não existe.*`], ['💡', `Veja a lista com \`${prefix}subbots\`.`]])
     }, { quoted: msg })
     return true
   }
@@ -785,7 +788,7 @@ async function enviarLinksGrupos(sock, msg, from, sender, ref, isOwnerOrSubdono,
   const num = String(alvo.sb.numero)
   const ativo = subbotManager.getSubbotPorNumero(num)
   if (!ativo?.sock || ativo.status !== 'online') {
-    await sock.sendMessage(from, { text: `❌ *O sub-bot #${alvo.posicao} (+${num}) não está online.*` }, { quoted: msg })
+    await sock.sendMessage(from, { text: cardGhost('ERRO', [['❌', `*O sub-bot #${alvo.posicao} (+${num}) não está online.*`]]) }, { quoted: msg })
     return true
   }
 
@@ -793,7 +796,7 @@ async function enviarLinksGrupos(sock, msg, from, sender, ref, isOwnerOrSubdono,
   try {
     grupos = await ativo.sock.groupFetchAllParticipating() || {}
   } catch (e) {
-    await sock.sendMessage(from, { text: `❌ *Não consegui buscar os grupos do sub-bot:* ${e.message}` }, { quoted: msg })
+    await sock.sendMessage(from, { text: cardGhost('ERRO', [['❌', `*Não consegui buscar os grupos do sub-bot:* ${e.message}`]]) }, { quoted: msg })
     return true
   }
 

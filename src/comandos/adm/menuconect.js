@@ -2,6 +2,7 @@ const fs = require('fs')
 const path = require('path')
 const config = require(path.join(__dirname, '../../../data/config.json'))
 const subbotManager = require('../../bot/subbotManager')
+const { cardGhost } = require('../../utils/cardGhost')
 
 async function handleMenuConect(sock, msg, from, sender, text) {
   const prefix = config.prefix || '.'
@@ -22,7 +23,7 @@ async function handleMenuConect(sock, msg, from, sender, text) {
   const isAutorizado = subbotManager.isAutorizado(sender, msg)
   if (!isAutorizado) {
     await sock.sendMessage(from, {
-      text: '❌ *Apenas o Dono, Subdonos ou Revendedores autorizados podem acessar este menu.*'
+      text: cardGhost('ERRO', [['❌', `*Apenas o Dono, Subdonos ou Revendedores autorizados podem acessar este menu.*`]])
     }, { quoted: msg })
     return true
   }
@@ -36,7 +37,7 @@ async function handleMenuConect(sock, msg, from, sender, text) {
   ].join('\n')
 
   const blocoConexao = [
-    '╭┈❁ *🔌 MÉTODOS DE CONEXÃO (A-Z)*',
+    '╭┈❁ *🔌 MÉTODOS DE CONEXÃO*',
     '┊',
     `┊•.̇𖥨֗👻⭟${prefix}conect <numero>`,
     `┊•.̇𖥨֗👻⭟${prefix}qr`,

@@ -66,8 +66,11 @@ module.exports = async (sock, msg, from, sender = null, options = {}) => {
             '┊',
             `┊•.̇𖥨֗👻⭟${prefix}menuadm`,
             `┊•.̇𖥨֗👻⭟${prefix}menuconect`,
+            `┊•.̇𖥨֗👻⭟${prefix}menuconfigurar`,
             `┊•.̇𖥨֗👻⭟${prefix}menudono`,
             `┊•.̇𖥨֗👻⭟${prefix}menumembro`,
+            `┊•.̇𖥨֗👻⭟${prefix}menunano`,
+            `┊•.̇𖥨֗👻⭟${prefix}menunanos`,
             `┊•.̇𖥨֗👻⭟${prefix}menuprefix`,
             '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
         ].join('\n')
@@ -76,7 +79,7 @@ module.exports = async (sock, msg, from, sender = null, options = {}) => {
     } else {
         // Membro comum: Menu comercial já existente
         const bloco1 = [
-            '╭┈❁ *🛒 TABELAS & PREÇOS (A-Z)*',
+            '╭┈❁ *🛒 TABELAS & PREÇOS*',
             '┊',
             `┊•.̇𖥨֗👻⭟${prefix}informacoes`,
             `┊•.̇𖥨֗👻⭟${prefix}pagamento`,
@@ -86,7 +89,7 @@ module.exports = async (sock, msg, from, sender = null, options = {}) => {
         ].join('\n')
 
         const bloco2 = [
-            '╭┈❁ *📋 UTILITÁRIOS & PERFIL (A-Z)*',
+            '╭┈❁ *📋 UTILITÁRIOS & PERFIL*',
             '┊',
             `┊•.̇𖥨֗👻⭟${prefix}infogp`,
             `┊•.̇𖥨֗👻⭟${prefix}perfil`,
@@ -94,7 +97,7 @@ module.exports = async (sock, msg, from, sender = null, options = {}) => {
         ].join('\n')
 
         const bloco3 = [
-            '╭┈❁ *👑 SUPORTE & ATENDIMENTO (A-Z)*',
+            '╭┈❁ *👑 SUPORTE & ATENDIMENTO*',
             '┊',
             `┊•.̇𖥨֗👻⭟${prefix}aluguel`,
             `┊•.̇𖥨֗👻⭟${prefix}dono`,

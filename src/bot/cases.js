@@ -76,20 +76,33 @@ function obterTextoContasGrupo(groupId) {
 
   if (mpesa.length === 0 && emola.length === 0) return null
 
-  let texto = `💳 *FORMAS DE PAGAMENTO*\n────────────────────────\n`
+  const linhas = [
+    '╭┈⊰ 💳 『 *FORMAS DE PAGAMENTO* 』',
+    '┊Efetue a transferência para uma das contas:',
+    '┊'
+  ]
+
   if (mpesa.length > 0) {
     mpesa.forEach(c => {
-      texto += `🔸 *M-Pesa:* ${c.numero} (${c.nome})\n`
+      linhas.push(`┊•.̇𖥨֗🟢⭟ *M-Pesa:* ${c.numero}`)
+      linhas.push(`┊•.̇𖥨֗👤⭟ *Titular:* ${c.nome}`)
+      linhas.push('┊')
     })
   }
+
   if (emola.length > 0) {
     emola.forEach(c => {
-      texto += `🔸 *e-Mola:* ${c.numero} (${c.nome})\n`
+      linhas.push(`┊•.̇𖥨֗🟡⭟ *e-Mola:* ${c.numero}`)
+      linhas.push(`┊•.̇𖥨֗👤⭟ *Titular:* ${c.nome}`)
+      linhas.push('┊')
     })
   }
-  texto += `────────────────────────\n`
-  texto += `_Instruções: Faça o pagamento e envie o comprovativo no grupo para ativação automática!_`
-  return texto
+
+  linhas.push('┊•.̇𖥨֗🧾⭟ *Confirmação:*')
+  linhas.push('┊Envie o comprovativo aqui no grupo para ativação!')
+  linhas.push('╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯')
+
+  return linhas.join('\n')
 }
 
 module.exports = async function (sock, msg) {
@@ -886,10 +899,18 @@ module.exports = async function (sock, msg) {
         `*Exemplo:*\n` +
         `.configurar M-Pesa 84XXXXXXX Nome\n` +
         `ou\n` +
-        `.nano pagamento/💳 *FORMAS DE PAGAMENTO*\n\n` +
-        `🔸 *M-Pesa:* 84XXXXXXX (Nome)\n` +
-        `🔸 *e-Mola:* 86XXXXXXX (Nome)\n\n` +
-        `_Instruções: Faça o pagamento e envie o comprovativo no grupo para ativação automática!_`
+        `.nano pagamento/╭┈⊰ 💳 『 FORMAS DE PAGAMENTO 』\n` +
+        `┊Efetue a transferência para uma das contas:\n` +
+        `┊\n` +
+        `┊•.̇𖥨֗🟢⭟ *M-Pesa:* 84XXXXXXX\n` +
+        `┊•.̇𖥨֗👤⭟ *Titular:* Nome do Titular\n` +
+        `┊\n` +
+        `┊•.̇𖥨֗🟡⭟ *e-Mola:* 86XXXXXXX\n` +
+        `┊•.̇𖥨֗👤⭟ *Titular:* Nome do Titular\n` +
+        `┊\n` +
+        `┊•.̇𖥨֗🧾⭟ *Confirmação:*\n` +
+        `┊Envie o comprovativo aqui no grupo para ativação!\n` +
+        `╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯`
       await sock.sendMessage(from, { text: msgErroPagamento }, { quoted: msg })
     }
     return
