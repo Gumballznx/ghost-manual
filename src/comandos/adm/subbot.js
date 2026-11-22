@@ -134,8 +134,10 @@ module.exports = async (sock, msg, from, sender, text) => {
           text: [
             '╭┈⊰ 👻 『 *USUÁRIO AUTORIZADO* 』',
             '┊',
-            `┊•.̇𖥨֗✅⭟ Usuário *+${resultado.numero}* autorizado com sucesso!`,
-            `┊•.̇𖥨֗📱⭟ Agora ele tem permissão para usar \`${prefix}conect\` e gerenciar sub-bots.`,
+            `┊•.̇𖥨֗✅⭟ Usuário *+${resultado.numero}* autorizado`,
+            '┊               com sucesso!',
+            '┊•.̇𖥨֗📱⭟ Agora ele tem permissão para usar',
+            `┊               \`${prefix}conect\` e gerenciar sub-bots.`,
             '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
           ].join('\n')
         }, { quoted: msg })
