@@ -613,8 +613,8 @@ class SubbotManager {
           }
           console.log(`[SUBBOT ${num}] ⌛ Pareamento não concluído (código ${reason}). Sessão descartada; gere um novo código.`)
           if (typeof onError === 'function') {
-            const comoGerar = method === 'qr' ? '.qr' : `.conect ${num}`
-            onError(new Error(`O código de pareamento expirou ou foi recusado antes da conexão (código ${reason}). Gere um novo com ${comoGerar} e digite-o logo em seguida.`))
+            // A dica de como gerar outro código (.conect / .qr) fica a cargo de quem mostra o erro
+            onError(new Error(`O código de pareamento expirou ou foi recusado antes da conexão (código ${reason}). Digite o código no celular logo depois de recebê-lo.`))
           }
           return
         }

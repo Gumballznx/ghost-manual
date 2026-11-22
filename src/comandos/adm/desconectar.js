@@ -2,6 +2,7 @@ const path = require('path')
 const config = require(path.join(__dirname, '../../../data/config.json'))
 const { isLeaderCheck, isSubdonoCheck } = require('../../utils/baileys')
 const subbotManager = require('../../bot/subbotManager')
+const { cardGhost } = require('../../utils/cardGhost')
 
 async function handleDesconectar(sock, msg, from, sender, text) {
   const prefix = config.prefix || '.'
@@ -21,7 +22,7 @@ async function handleDesconectar(sock, msg, from, sender, text) {
   const isAutorizado = subbotManager.isAutorizado(sender, msg)
   if (!isAutorizado) {
     await sock.sendMessage(from, {
-      text: '❌ *Você não tem permissão para gerenciar conexões de sub-bots.*'
+      text: cardGhost('ERRO', [['❌', `*Você não tem permissão para gerenciar conexões de sub-bots.*`]])
     }, { quoted: msg })
     return true
   }
@@ -80,7 +81,7 @@ async function handleDesconectar(sock, msg, from, sender, text) {
 
   if (!rawNumber) {
     await sock.sendMessage(from, {
-      text: `❌ *Informe o número do sub-bot a ser desconectado.*\nExemplo: \`${prefix}desconectar 25884xxxxxxx\``
+      text: cardGhost('ERRO', [['❌', `*Informe o número do sub-bot a ser desconectado.*`], ['💡', `Exemplo: \`${prefix}desconectar 25884xxxxxxx\``]])
     }, { quoted: msg })
     return true
   }

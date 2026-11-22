@@ -2,6 +2,7 @@ const path = require('path')
 const config = require('../../../data/config.json')
 const { isLeaderCheck, isSubdonoCheck } = require('../../utils/baileys')
 const subbotManager = require('../../bot/subbotManager')
+const { cardGhost } = require('../../utils/cardGhost')
 
 /**
  * Comando para Conectar ou Reconectar a Conexão Principal (Mãe) via WhatsApp remoto!
@@ -137,7 +138,7 @@ async function handleConectarMae(sock, msg, from, sender, text) {
             lastQrKey = null
           }
           await sock.sendMessage(from, {
-            text: `❌ *Erro ao parear Conexão Principal via QR:* ${err.message}`
+            text: cardGhost('ERRO', [['❌', `*Erro ao parear Conexão Principal via QR:* ${err.message}`]])
           }, { quoted: msg })
         }
       })
@@ -146,7 +147,7 @@ async function handleConectarMae(sock, msg, from, sender, text) {
         try { await sock.sendMessage(from, { delete: placeholderMsg.key }) } catch {}
       }
       await sock.sendMessage(from, {
-        text: `❌ *Falha ao iniciar processo QR da Conexão Principal:* ${err.message}`
+        text: cardGhost('ERRO', [['❌', `*Falha ao iniciar processo QR da Conexão Principal:* ${err.message}`]])
       }, { quoted: msg })
     }
     return true
@@ -158,7 +159,7 @@ async function handleConectarMae(sock, msg, from, sender, text) {
 
   const validacaoMae = subbotManager.validarNumeroComDDI(cleanNumber)
   if (cleanNumber && !validacaoMae.ok) {
-    await sock.sendMessage(from, { text: `❌ *${validacaoMae.erro}*` }, { quoted: msg })
+    await sock.sendMessage(from, { text: cardGhost('ERRO', [['❌', `*${validacaoMae.erro}*`]]) }, { quoted: msg })
     return true
   }
   if (!cleanNumber || cleanNumber.length < 8) {
@@ -178,7 +179,7 @@ async function handleConectarMae(sock, msg, from, sender, text) {
   }
 
   await sock.sendMessage(from, {
-    text: `⏳ *Iniciando conexão da CONEXÃO PRINCIPAL (MÃE) para +${cleanNumber}...*\n\nGerando código de pareamento de 8 dígitos, aguarde...`
+    text: cardGhost('CONEXÃO PRINCIPAL: INICIANDO', [['📱', `*Número:* +${cleanNumber}`], ['⏳', 'Gerando o código de pareamento...'], ['💡', 'Aguarde alguns segundos.']])
   }, { quoted: msg })
 
   try {
@@ -230,13 +231,13 @@ async function handleConectarMae(sock, msg, from, sender, text) {
       },
       onError: async (err) => {
         await sock.sendMessage(from, {
-          text: `❌ *Erro ao conectar Conexão Principal:* ${err.message}`
+          text: cardGhost('ERRO', [['❌', `*Erro ao conectar Conexão Principal:* ${err.message}`]])
         }, { quoted: msg })
       }
     })
   } catch (err) {
     await sock.sendMessage(from, {
-      text: `❌ *Erro ao iniciar processo da Conexão Principal:* ${err.message}`
+      text: cardGhost('ERRO', [['❌', `*Erro ao iniciar processo da Conexão Principal:* ${err.message}`]])
     }, { quoted: msg })
   }
 
