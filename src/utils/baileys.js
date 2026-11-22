@@ -96,18 +96,34 @@ function addSubdono(numero) {
 
 function removeSubdono(numero) {
   const subdonos = loadSubdonos()
-  const numClean = numero.replace(/\D/g, '')
-  const index = subdonos.indexOf(numClean)
-  if (index !== -1) {
-    subdonos.splice(index, 1)
-    saveSubdonos(subdonos)
+  const numClean = String(numero || '').replace(/\D/g, '')
+  if (!numClean) return false
+  // Um sub dono pode estar guardado com o número (258...) e ser mencionado com o LID do WhatsApp
+  // (ou o contrário): remove todas as entradas que são a mesma pessoa.
+  const chaves = getSenderCandidateKeys(numClean)
+  const removidos = subdonos.filter(s => chaves.has(s) || chaves.has(String(s).replace(/\D/g, '')))
+  if (removidos.length === 0) return false
+  const restantes = subdonos.filter(s => !removidos.includes(s))
+  saveSubdonos(restantes)
     try {
       const { removerSubdonoLid } = require('./lidResolver')
-      removerSubdonoLid(numClean)
+      for (const r of removidos) removerSubdonoLid(String(r).replace(/\D/g, ''))
     } catch {}
-    return true
-  }
-  return false
+  return true
+}
+
+/** Remove o sub dono que está na posição `posicao` (1 = primeiro da lista). Devolve o número ou null. */
+function removeSubdonoPorPosicao(posicao) {
+  const subdonos = loadSubdonos()
+  const i = Number(posicao) - 1
+  if (!Number.isInteger(i) || i < 0 || i >= subdonos.length) return null
+  const [removido] = subdonos.splice(i, 1)
+  saveSubdonos(subdonos)
+  try {
+    const { removerSubdonoLid } = require('./lidResolver')
+    removerSubdonoLid(String(removido).replace(/\D/g, ''))
+  } catch {}
+  return removido
 }
 
 function getSenderCandidateKeys(senderId) {
@@ -524,4 +540,4 @@ async function resolverParticipanteGrupo(sock, from, lidCru, msg = null) {
 }
 
 module.exports = {
-  sessaoPareada, getText, getSender, getSenderNumber, isAdmin, isOwnerCheck, isLeaderCheck, isSubdonoCheck, loadSubdonos, addSubdono, removeSubdono, getSenderCandidateKeys, getCargo, invalidateGroupCache, getGroupMetadataCached, resolverParticipanteGrupo }
+  sessaoPareada, getText, getSender, getSenderNumber, isAdmin, isOwnerCheck, isLeaderCheck, isSubdonoCheck, loadSubdonos, addSubdono, removeSubdono, removeSubdonoPorPosicao, getSenderCandidateKeys, getCargo, invalidateGroupCache, getGroupMetadataCached, resolverParticipanteGrupo }
