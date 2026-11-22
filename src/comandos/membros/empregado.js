@@ -15,6 +15,8 @@ async function handleEmpregado(sock, msg, from) {
                 if (clean) numero = clean
             }
         }
+        const fbNome = await fetchFirebase('bot_data/suporteNome')
+        if (typeof fbNome === 'string' && fbNome.trim()) nome = fbNome.trim()
     } catch (e) {
         numero = '-'
     }

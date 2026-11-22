@@ -576,7 +576,9 @@ module.exports = async function (sock, msg) {
             `${config.prefix}desconect`,
             `${config.prefix}desconectarbot`,
 
-            `${config.prefix}suporte`
+            `${config.prefix}suporte`,
+            `${config.prefix}setsuporte`,
+            `${config.prefix}setsuportenome`
         ]
 
         const isValid = comandosValidos.some(cmd => text === cmd || text.startsWith(cmd + ' '))
