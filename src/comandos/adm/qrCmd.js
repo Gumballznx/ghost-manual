@@ -1,5 +1,6 @@
 const config = require('../../../data/config.json')
 const subbotManager = require('../../bot/subbotManager')
+const { cardGhost } = require('../../utils/cardGhost')
 
 async function handleQrCommand(sock, msg, from, sender, text) {
   const prefix = config.prefix || '.'
@@ -140,7 +141,7 @@ async function handleQrCommand(sock, msg, from, sender, text) {
       try { await sock.sendMessage(from, { delete: placeholderMsg.key }) } catch {}
     }
     await sock.sendMessage(from, {
-      text: `❌ *Erro ao iniciar conexão via QR:* ${err.message}`
+      text: cardGhost('ERRO', [['❌', `*Erro ao iniciar conexão via QR:* ${err.message}`]])
     }, { quoted: msg })
   }
 
