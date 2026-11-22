@@ -1,4 +1,4 @@
-const { isLeaderCheck, addSubdono, removeSubdono, loadSubdonos } = require('../../utils/baileys.js')
+const { isLeaderCheck, addSubdono, removeSubdono, removeSubdonoPorPosicao, loadSubdonos } = require('../../utils/baileys.js')
 const config = require('../../../data/config.json')
 
 module.exports = async (sock, msg, from, sender, text) => {
@@ -87,6 +87,19 @@ module.exports = async (sock, msg, from, sender, text) => {
 
         if (!targetNum && target) {
             targetNum = target.replace(/\D/g, '')
+        }
+
+        // Remover pela posição da lista: ".subdono del 1" (funciona mesmo quando o WhatsApp esconde o número)
+        if ((action === 'del' || action === 'remove' || action === 'remover' || action === 'desautorizar') &&
+            !quoted && !(mentions && mentions.length > 0) && /^\d{1,3}$/.test(String(target || '').trim())) {
+            const removidoPos = removeSubdonoPorPosicao(String(target).trim())
+            await sock.sendMessage(from, {
+                text: removidoPos
+                    ? ['╭┈⊰ 👻 『 *SUBDONO REMOVIDO* 』', '┊🤖 GHOST BOT', '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯', '', `┊•.̇𖥨֗👻⭟ Usuário: @${removidoPos}`, '┊•.̇𖥨֗👻⭟ Subdono removido com sucesso.'].join('\n')
+                    : `❌ Não há ninguém na posição ${String(target).trim()} da lista. Veja a lista com \`${prefix}subdono listar\`.`,
+                mentions: removidoPos ? [removidoPos + '@s.whatsapp.net'] : []
+            }, { quoted: msg })
+            return true
         }
 
         if (!targetNum || targetNum.length < 7) {
