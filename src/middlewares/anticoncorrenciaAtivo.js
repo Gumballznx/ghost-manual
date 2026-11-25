@@ -55,7 +55,11 @@ async function anticoncorrenciaAtivo(sock, update) {
         }
     }
 
-    for (const participant of participants) {
+    const removidos = []
+    for (const rawParticipant of participants) {
+        const participant = typeof rawParticipant === 'string'
+            ? rawParticipant
+            : (rawParticipant?.id || rawParticipant?.jid || rawParticipant?.phoneNumber || '')
         const numClean = participant.split('@')[0].split(':')[0].replace(/\D/g, '')
         if (!numClean) continue
 
@@ -75,6 +79,7 @@ async function anticoncorrenciaAtivo(sock, update) {
         }
 
         if (motivo) {
+            removidos.push(participant)
             try {
                 await sock.sendMessage(groupId, {
                     text: `🛡️ *ANTI-CONCORRÊNCIA ATIVADO*\n\n🚫 O usuário @${numClean} foi identificado como concorrente (_${motivo}_) e foi banido automaticamente deste grupo.`,
@@ -93,6 +98,7 @@ async function anticoncorrenciaAtivo(sock, update) {
             }
         }
     }
+    return removidos
 }
 
 module.exports = anticoncorrenciaAtivo

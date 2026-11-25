@@ -128,11 +128,17 @@ async function antigringoAtivo(sock, update) {
     const botNumber = botJid.split(':')[0].split('@')[0].replace(/\D/g, '')
     const botLid = sock.user?.lid ? sock.user.lid.split(':')[0].split('@')[0].replace(/\D/g, '') : ''
 
-    for (const participant of participants) {
-        let numReal = extrairNumeroReal(participant)
+    const removidos = []
+    for (const rawParticipant of participants) {
+        const participant = typeof rawParticipant === 'string'
+            ? rawParticipant
+            : (rawParticipant?.id || rawParticipant?.jid || rawParticipant?.phoneNumber || '')
+        if (!participant) continue
+
+        let numReal = extrairNumeroReal(rawParticipant)
 
         if (!numReal && metadata && Array.isArray(metadata.participants)) {
-            const rawP = (participant || '').split('@')[0].split(':')[0]
+            const rawP = participant.split('@')[0].split(':')[0]
             const found = metadata.participants.find(p =>
                 (p.id && (p.id === participant || p.id.split('@')[0].split(':')[0] === rawP)) ||
                 (p.lid && (p.lid === participant || p.lid.split('@')[0].split(':')[0] === rawP))
@@ -158,6 +164,7 @@ async function antigringoAtivo(sock, update) {
         const isPermitido = infoPais.isMoz || allowedDdis.includes(infoPais.ddi) || allowedDdis.some(ddi => numReal.startsWith(ddi))
 
         if (!isPermitido) {
+            removidos.push(participant)
             try {
                 await sock.sendMessage(groupId, {
                     text: `🛡️ *ANTI-GRINGO ATIVADO*\n\n🚫 O usuário @${numReal} (${infoPais.nome}) possui um número estrangeiro não autorizado neste grupo e foi removido automaticamente.`,
@@ -181,6 +188,7 @@ async function antigringoAtivo(sock, update) {
             }
         }
     }
+    return removidos
 }
 
 module.exports = antigringoAtivo

@@ -447,12 +447,38 @@ async function processarEventoParticipantesGrupo(sock, update) {
     }
 
     const anticoncorrenciaAtivo = require('./src/middlewares/anticoncorrenciaAtivo')
-    await anticoncorrenciaAtivo(sock, update)
+    const removidosConc = await anticoncorrenciaAtivo(sock, update)
 
     const antigringoAtivo = require('./src/middlewares/antigringoAtivo')
-    await antigringoAtivo(sock, update)
+    const removidosGringo = await antigringoAtivo(sock, update)
 
-    await bemvindo(sock, update)
+    let updateBemvindo = update
+    if (update.action === 'add' && Array.isArray(update.participants)) {
+      const extrairJid = (p) => (typeof p === 'string' ? p : (p?.id || p?.jid || p?.phoneNumber || ''))
+      const banidosRaw = [
+        ...(Array.isArray(removidosConc) ? removidosConc : []),
+        ...(Array.isArray(removidosGringo) ? removidosGringo : [])
+      ]
+      if (banidosRaw.length > 0) {
+        const banidosSet = new Set()
+        for (const item of banidosRaw) {
+          const jid = extrairJid(item)
+          if (!jid) continue
+          banidosSet.add(jid)
+          const digits = jid.split('@')[0].split(':')[0].replace(/\D/g, '')
+          if (digits) banidosSet.add(digits)
+        }
+        const filtrados = update.participants.filter(p => {
+          const pJid = extrairJid(p)
+          const pDigits = pJid ? pJid.split('@')[0].split(':')[0].replace(/\D/g, '') : ''
+          return !banidosSet.has(pJid) && !(pDigits && banidosSet.has(pDigits))
+        })
+        if (filtrados.length === 0) return
+        updateBemvindo = { ...update, participants: filtrados }
+      }
+    }
+
+    await bemvindo(sock, updateBemvindo)
   } catch (e) {
     console.error("Erro no middleware de grupo:", e)
   }
@@ -793,22 +819,23 @@ async function connectSocket() {
       const botConectado = global.primaryConnected || subbotManager.listarSubbots().some(s => s.online)
       if (!botConectado) return
       try {
+        const { patchFirebase } = require('./src/utils/firebaseConfig')
         const groups = configManager.loadGroupConfig()
-        const now = new Date()
-        const offset = 2 * 60
-        const utc = now.getTime() + (now.getTimezoneOffset() * 60000)
-        const agoraMocambique = utc + (offset * 60000)
-
-        let mudou = false
+        const agoraMocambique = Date.now()
 
         for (const [groupId, cfg] of Object.entries(groups)) {
+          const safeGid = groupId.replace(/\./g, '___dot___')
 
           if (cfg.botDesligado && cfg.offExpiraEm) {
             if (agoraMocambique >= cfg.offExpiraEm) {
               groups[groupId].botDesligado = false
               delete groups[groupId].offPor
               delete groups[groupId].offExpiraEm
-              mudou = true
+              patchFirebase(`bot_data/group_config/${safeGid}`, {
+                botDesligado: false,
+                offPor: null,
+                offExpiraEm: null
+              }).catch(() => {})
 
               const temSub = subbotManager.temSubbotAtivoNoGrupo(groupId)
               const activeSock = subbotManager.socketParaGrupo(groupId)
@@ -835,13 +862,7 @@ async function connectSocket() {
             if (!activeSock) continue
 
             const isParticipating = temSub || (global.participatingGroups && global.participatingGroups.has(groupId))
-            if (!isParticipating) {
-              if (tempoRestante <= 0 && !cfg.avisouExpiracao) {
-                groups[groupId].avisouExpiracao = true
-                mudou = true
-              }
-              continue
-            }
+            if (!isParticipating) continue
 
             const { getSuporteNumber } = require('./src/utils/configManager')
             const suporteNum = getSuporteNumber()
@@ -856,7 +877,7 @@ async function connectSocket() {
                 console.error('[EXPIRACAO] Erro ao enviar aviso de 5 dias:', err.message)
               } finally {
                 groups[groupId].avisouPreExpiracao5d = true
-                mudou = true
+                patchFirebase(`bot_data/group_config/${safeGid}`, { avisouPreExpiracao5d: true }).catch(() => {})
               }
             }
 
@@ -870,7 +891,7 @@ async function connectSocket() {
                 console.error('[EXPIRACAO] Erro ao enviar aviso de 24h:', err.message)
               } finally {
                 groups[groupId].avisouPreExpiracao24h = true
-                mudou = true
+                patchFirebase(`bot_data/group_config/${safeGid}`, { avisouPreExpiracao24h: true }).catch(() => {})
               }
             }
 
@@ -884,14 +905,10 @@ async function connectSocket() {
                 console.error('[EXPIRACAO] Erro ao avisar grupo expirado:', err.message)
               } finally {
                 groups[groupId].avisouExpiracao = true
-                mudou = true
+                patchFirebase(`bot_data/group_config/${safeGid}`, { avisouExpiracao: true }).catch(() => {})
               }
             }
           }
-        }
-
-        if (mudou) {
-          configManager.saveGroupConfig(true)
         }
       } catch (err) {
 
