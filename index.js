@@ -951,6 +951,7 @@ async function iniciarBots() {
 
   try {
     await preloadAll()
+    require('./src/utils/concorrentesSync').iniciarSyncConcorrentes()
   } catch (errPreload) {
     console.error('[START] Erro ao pré-carregar dados do Firebase:', errPreload.message)
   }

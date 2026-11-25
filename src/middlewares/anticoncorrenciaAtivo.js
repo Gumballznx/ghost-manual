@@ -1,6 +1,7 @@
 const configManager = require('../utils/configManager')
 const { isOwnerCheck, isLeaderCheck, getGroupMetadataCached } = require('../utils/baileys')
 const { concorrentesStore } = require('../utils/firebaseDataLayer')
+const { sincronizarConcorrentesAgora } = require('../utils/concorrentesSync')
 
 async function anticoncorrenciaAtivo(sock, update) {
     if (update.action !== 'add') return
@@ -14,10 +15,11 @@ async function anticoncorrenciaAtivo(sock, update) {
 
     if (!gInfo?.authorized || gInfo?.anticoncorrencia !== true) return
 
-    const whitelistLocal = new Set(gInfo.concorrentes_whitelist || [])
+    const whitelistLocal = new Set((gInfo.concorrentes_whitelist || []).map(String))
 
+    await sincronizarConcorrentesAgora()
     const concStoreData = concorrentesStore.loadSync() || {}
-    const manualGlobal = new Set(concStoreData.global || [])
+    const manualGlobal = new Set((concStoreData.global || []).map(String))
 
     let allGroups = {}
     try {
@@ -60,21 +62,29 @@ async function anticoncorrenciaAtivo(sock, update) {
         const participant = typeof rawParticipant === 'string'
             ? rawParticipant
             : (rawParticipant?.id || rawParticipant?.jid || rawParticipant?.phoneNumber || '')
-        const numClean = participant.split('@')[0].split(':')[0].replace(/\D/g, '')
+        const digitos = v => String(v || '').split('@')[0].split(':')[0].replace(/\D/g, '')
+        const chaves = [...new Set([
+            digitos(participant),
+            digitos(rawParticipant?.jid),
+            digitos(rawParticipant?.phoneNumber),
+            digitos(rawParticipant?.lid)
+        ].filter(Boolean))]
+        const numClean = chaves[0] || ''
         if (!numClean) continue
 
-        if (isLeaderCheck(participant) || isOwnerCheck(participant) || isLeaderCheck(numClean) || isOwnerCheck(numClean)) {
+        if (isLeaderCheck(participant) || isOwnerCheck(participant) || chaves.some(c => isLeaderCheck(c) || isOwnerCheck(c))) {
             continue
         }
 
-        if (whitelistLocal.has(numClean)) {
+        if (chaves.some(c => whitelistLocal.has(c))) {
             continue
         }
 
         let motivo = null
-        if (adminDeOutrosGrupos.has(numClean)) {
-            motivo = `Admin em outro grupo de vendas (${adminDeOutrosGrupos.get(numClean)})`
-        } else if (manualGlobal.has(numClean)) {
+        const adminMatch = chaves.find(c => adminDeOutrosGrupos.has(c))
+        if (adminMatch) {
+            motivo = `Admin em outro grupo de vendas (${adminDeOutrosGrupos.get(adminMatch)})`
+        } else if (chaves.some(c => manualGlobal.has(c))) {
             motivo = 'Registrado na Lista Negra de Concorrentes'
         }
 

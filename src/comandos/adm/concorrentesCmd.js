@@ -2,6 +2,7 @@ const config = require('../../../data/config.json')
 const configManager = require('../../utils/configManager')
 const { isAdmin, isOwnerCheck, isLeaderCheck, getGroupMetadataCached } = require('../../utils/baileys')
 const { concorrentesStore } = require('../../utils/firebaseDataLayer')
+const { adicionarConcorrentesGlobal, sincronizarConcorrentesAgora } = require('../../utils/concorrentesSync')
 
 if (!global.concorrentesMapeados) {
     global.concorrentesMapeados = {}
@@ -172,17 +173,13 @@ module.exports = async function (sock, msg, from, sender, text) {
             numeroDoBot,
             eDonoOuSubdono: id => isOwnerCheck(id)
         })
-        const dados = concorrentesStore.loadSync() || {}
-        if (!Array.isArray(dados.global)) dados.global = []
-        const jaEstavam = novos.filter(n => dados.global.includes(n)).length
-        for (const n of novos) if (!dados.global.includes(n)) dados.global.push(n)
-        concorrentesStore.save(dados)
+        const { adicionados } = await adicionarConcorrentesGlobal(novos)
         await sock.sendMessage(from, {
             text: [
                 '🚫 *ANTI-CONCORRÊNCIA: GRUPO ADICIONADO*',
                 '────────────────────────',
                 `👥 *Membros na lista:* ${membros}`,
-                `🆕 *Identificadores novos:* ${novos.length - jaEstavam} (número e/ou ID do WhatsApp)`,
+                `🆕 *Identificadores novos:* ${adicionados} (número e/ou ID do WhatsApp)`,
                 `🛡️ *Não adicionados (dono, subdonos e o bot):* ${ignorados}`,
                 '',
                 'Serão barrados em todos os grupos com a Anti-Concorrência ativa.'
@@ -345,13 +342,7 @@ module.exports = async function (sock, msg, from, sender, text) {
         }
 
         const alvoNum = alvo.split('@')[0].split(':')[0].replace(/\D/g, '')
-        const concStoreData = concorrentesStore.loadSync() || {}
-        if (!concStoreData.global) concStoreData.global = []
-
-        if (!concStoreData.global.includes(alvoNum)) {
-            concStoreData.global.push(alvoNum)
-            concorrentesStore.save(concStoreData)
-        }
+        await adicionarConcorrentesGlobal([alvoNum])
 
         await sock.sendMessage(from, {
             text: `🚫 *CONCORRENTE ADICIONADO À BLACKLIST GLOBAL!*\n\nO usuário @${alvoNum} foi marcado como concorrente e será barrado em todos os grupos com Anti-Concorrência ativo.`,
@@ -362,6 +353,7 @@ module.exports = async function (sock, msg, from, sender, text) {
 
     // .anticoncorrencia listar / .concorrentes listar — quem da lista global está neste grupo. Só mostra, nunca remove.
     if (isListarCmd) {
+        await sincronizarConcorrentesAgora()
         const dados = concorrentesStore.loadSync() || {}
         const global = new Set((dados.global || []).map(String))
         const whitelist = new Set(groupConfig[from]?.concorrentes_whitelist || [])
@@ -442,6 +434,7 @@ module.exports = async function (sock, msg, from, sender, text) {
 
             const adminMap = await coletarAdminsDeOutrosGrupos(sock, from)
 
+            await sincronizarConcorrentesAgora()
             const concStoreData = concorrentesStore.loadSync() || {}
             const manualGlobal = concStoreData.global || []
 
