@@ -4,6 +4,17 @@ function loadGroupConfig() {
     return groupConfigStore.loadSync() || {}
 }
 
+function getGroupEntry(groupId, groups = null) {
+    if (!groupId) return {}
+    const all = groups || loadGroupConfig()
+    const dotKey = groupId.replace(/\./g, '___dot___')
+    const normalKey = groupId.replace(/___dot___/g, '.')
+    const dotEntry = all[dotKey] && typeof all[dotKey] === 'object' ? all[dotKey] : {}
+    const normalEntry = all[normalKey] && typeof all[normalKey] === 'object' ? all[normalKey] : {}
+    const directEntry = all[groupId] && typeof all[groupId] === 'object' ? all[groupId] : {}
+    return { ...dotEntry, ...normalEntry, ...directEntry }
+}
+
 function loadConcorrentes() {
     return concorrentesStore.loadSync() || {}
 }
@@ -130,6 +141,7 @@ function setGlobalPrefix(newPrefix) {
 
 module.exports = {
     loadGroupConfig,
+    getGroupEntry,
     saveGroupConfig,
     loadConcorrentes,
     saveConcorrentes,

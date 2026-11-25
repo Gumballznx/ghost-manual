@@ -21,6 +21,7 @@ class SubbotManager {
     this.activeSubbots = new Map() // numero -> { sock, numero, grupos, status, reconnectAttempts, queue, ... }
     this.groupToSubbot = new Map() // groupId -> numero
     this.processarMensagemFn = null
+    this.processarEventoGrupoFn = null
     this.pairingTimeouts = new Map()
 
     this.carregarDados()
@@ -28,6 +29,10 @@ class SubbotManager {
 
   setProcessarMensagemFn(fn) {
     this.processarMensagemFn = fn
+  }
+
+  setProcessarEventoGrupoFn(fn) {
+    this.processarEventoGrupoFn = fn
   }
 
   carregarDados() {
@@ -52,6 +57,18 @@ class SubbotManager {
           this.salvarDados()
           console.log('[SUBBOTS] Vínculos automáticos de grupos limpos; use .subbot vincular para escolher os grupos.')
         }
+
+        let preencheuGrupoConexao = false
+        for (const sb of Object.values(this.dados.subbots)) {
+          if (sb && typeof sb === 'object' && !sb.grupoConexao && typeof sb.sessao === 'string') {
+            const m = sb.sessao.match(/^subbot_temp_(120363\d+)gus$/)
+            if (m) {
+              sb.grupoConexao = `${m[1]}@g.us`
+              preencheuGrupoConexao = true
+            }
+          }
+        }
+        if (preencheuGrupoConexao) this.salvarDados()
 
         this.limparRegistrosMortos()
       }
@@ -271,11 +288,41 @@ class SubbotManager {
     return this.activeSubbots.get(num) || null
   }
 
+  normalizarGrupoId(groupId) {
+    return String(groupId || '').trim().replace(/___dot___/g, '.')
+  }
+
+  getGrupoConexao(numero) {
+    const num = this.normalizarNumero(numero)
+    const fromDados = this.dados.subbots?.[num]?.grupoConexao || null
+    if (fromDados) return this.normalizarGrupoId(fromDados)
+    const active = this.activeSubbots.get(num)
+    return active?.grupoSolicitante ? this.normalizarGrupoId(active.grupoSolicitante) : null
+  }
+
+  podeVincularGrupo(numero, groupId) {
+    const gid = this.normalizarGrupoId(groupId)
+    if (!gid) return { ok: false, erro: 'Grupo inválido.' }
+    const grupoConexao = this.getGrupoConexao(numero)
+    if (grupoConexao && grupoConexao === gid) {
+      return {
+        ok: false,
+        erro: 'Um sub-bot não pode ser vinculado ao mesmo grupo onde ele foi conectado.'
+      }
+    }
+    return { ok: true }
+  }
+
   vincularGrupo(numero, groupId) {
     const num = this.normalizarNumero(numero)
+    const gid = this.normalizarGrupoId(groupId)
+    const validacao = this.podeVincularGrupo(num, gid)
+    if (!validacao.ok) {
+      throw new Error(validacao.erro)
+    }
     // Se o grupo estava com outro sub-bot, solta antes de vincular a este
-    const anterior = this.groupToSubbot.get(groupId)
-    if (anterior && anterior !== num) this.desvincularGrupo(groupId)
+    const anterior = this.groupToSubbot.get(gid)
+    if (anterior && anterior !== num) this.desvincularGrupo(gid)
     if (!this.dados.subbots[num]) {
       this.dados.subbots[num] = {
         numero: num,
@@ -287,14 +334,14 @@ class SubbotManager {
     }
     const sb = this.dados.subbots[num]
     if (!sb.grupos) sb.grupos = []
-    if (!sb.grupos.includes(groupId)) {
-      sb.grupos.push(groupId)
+    if (!sb.grupos.includes(gid)) {
+      sb.grupos.push(gid)
       this.salvarDados()
     }
-    this.groupToSubbot.set(groupId, num)
+    this.groupToSubbot.set(gid, num)
     const active = this.activeSubbots.get(num)
-    if (active && !active.grupos.includes(groupId)) {
-      active.grupos.push(groupId)
+    if (active && !active.grupos.includes(gid)) {
+      active.grupos.push(gid)
     }
     return true
   }
@@ -366,6 +413,10 @@ class SubbotManager {
       fs.mkdirSync(sessionPath, { recursive: true })
     }
 
+    const grupoOrigem = (grupoId && String(grupoId).endsWith('@g.us'))
+      ? this.normalizarGrupoId(grupoId)
+      : (this.dados.subbots[num]?.grupoConexao ? this.normalizarGrupoId(this.dados.subbots[num].grupoConexao) : null)
+
     // Registra / atualiza registro no subbots.json
     if (!this.dados.subbots[num]) {
       this.dados.subbots[num] = {
@@ -374,6 +425,7 @@ class SubbotManager {
         // Conectar NÃO vincula grupo nenhum: o dono da conexão escolhe depois,
         // com .subbot vincular, em quais grupos o sub-bot atende.
         grupos: [],
+        grupoConexao: grupoOrigem,
         criadoEm: Date.now(),
         criadoPor: autorJid,
         ativo: true,
@@ -383,6 +435,9 @@ class SubbotManager {
       this.dados.subbots[num].ativo = true
       this.dados.subbots[num].sessao = path.basename(sessionPath)
       this.dados.subbots[num].status = method === 'qr' ? 'aguardando_qr' : 'pareando'
+      if (grupoOrigem) {
+        this.dados.subbots[num].grupoConexao = grupoOrigem
+      }
     }
     this.salvarDados()
 
@@ -425,7 +480,7 @@ class SubbotManager {
       reconnectAttempts: 0,
       attempts: 0,
       queue,
-      grupoSolicitante: grupoId
+      grupoSolicitante: grupoOrigem
     }
     this.activeSubbots.set(num, subbotEntry)
 
@@ -524,10 +579,12 @@ class SubbotManager {
 
         // Se o identificador inicial era temporário (ex: temp_...), atualiza para o número real conectado
         if (connectedNum && connectedNum !== num) {
+          const grupoConexao = this.dados.subbots[num]?.grupoConexao || subbotEntry.grupoSolicitante || this.dados.subbots[connectedNum]?.grupoConexao || null
           this.dados.subbots[connectedNum] = {
             numero: connectedNum,
             sessao: path.basename(sessionPath),
             grupos: subbotEntry.grupos,
+            grupoConexao,
             criadoEm: Date.now(),
             criadoPor: autorJid,
             ativo: true,
@@ -708,6 +765,20 @@ class SubbotManager {
       }
     })
 
+    // Escuta entradas, saídas e alterações de participantes nos grupos vinculados a este sub-bot
+    sock.ev.on('group-participants.update', async (update) => {
+      try {
+        const gid = update?.id
+        if (!gid || !gid.endsWith('@g.us')) return
+        if (this.groupToSubbot.get(gid) !== num) return
+        if (typeof this.processarEventoGrupoFn === 'function') {
+          await this.processarEventoGrupoFn(sock, update)
+        }
+      } catch (e) {
+        console.error(`[SUBBOT ${num}] Erro ao processar evento de grupo:`, e.message)
+      }
+    })
+
     return { numero: num, sock }
   }
 
@@ -752,9 +823,12 @@ class SubbotManager {
     return true
   }
 
-  async iniciarSubbotsExistentes(processarMensagemFn) {
+  async iniciarSubbotsExistentes(processarMensagemFn, processarEventoGrupoFn = null) {
     if (processarMensagemFn) {
       this.setProcessarMensagemFn(processarMensagemFn)
+    }
+    if (processarEventoGrupoFn) {
+      this.setProcessarEventoGrupoFn(processarEventoGrupoFn)
     }
 
     // Restaurar sessões só uma vez por processo, para não abrir sockets duplicados
@@ -969,6 +1043,16 @@ class SubbotManager {
         }
       } catch (e) {
         console.error('[CONEXÃO PRINCIPAL] Erro no lote de mensagens:', e.message)
+      }
+    })
+
+    sock.ev.on('group-participants.update', async (update) => {
+      try {
+        if (typeof this.processarEventoGrupoFn === 'function') {
+          await this.processarEventoGrupoFn(sock, update)
+        }
+      } catch (e) {
+        console.error('[CONEXÃO PRINCIPAL] Erro ao processar evento de grupo:', e.message)
       }
     })
 

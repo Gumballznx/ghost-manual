@@ -10,7 +10,7 @@ function getDataMocambique() {
 
 function grupoAutorizado(groupId) {
   const groups = configManager.loadGroupConfig()
-  const grupoInfo = groups[groupId] || groups[groupId.replace(/\./g, '___dot___')] || groups[groupId.replace(/___dot___/g, '.')] || {}
+  const grupoInfo = configManager.getGroupEntry(groupId, groups)
 
   if (!grupoInfo?.authorized) return false
 
@@ -22,6 +22,14 @@ function grupoAutorizado(groupId) {
   return true
 }
 
+function extrairJidParticipante(participant) {
+  if (typeof participant === 'string') return participant
+  if (participant && typeof participant === 'object') {
+    return participant.id || participant.jid || participant.phoneNumber || ''
+  }
+  return ''
+}
+
 module.exports = async (sock, update) => {
   if (update?.participants && update.action === 'add') {
     const groupId = update.id
@@ -30,7 +38,7 @@ module.exports = async (sock, update) => {
     if (!grupoAutorizado(groupId)) return
 
     const groups = configManager.loadGroupConfig()
-    const grupoCfg = groups[groupId] || groups[groupId.replace(/\./g, '___dot___')] || groups[groupId.replace(/___dot___/g, '.')] || {}
+    const grupoCfg = configManager.getGroupEntry(groupId, groups)
 
     const bemvindoConfig = bemvindoStore.loadSync() || {}
     const dotJid = groupId.replace(/\./g, '___dot___')
@@ -43,8 +51,22 @@ module.exports = async (sock, update) => {
     const isOn = bvStatus === true || grupoCfg.boasVindas === true || grupoCfg.bemvindo === true
 
     if (isOn) {
+      const botNum = sock?.user?.id ? sock.user.id.split(':')[0].split('@')[0].replace(/\D/g, '') : ''
+      const botLid = sock?.user?.lid ? sock.user.lid.split(':')[0].split('@')[0].replace(/\D/g, '') : ''
+      const participants = (Array.isArray(update.participants) ? update.participants : [])
+        .map(extrairJidParticipante)
+        .filter(jid => {
+          if (!jid) return false
+          const clean = jid.split('@')[0].split(':')[0].replace(/\D/g, '')
+          if (botNum && clean === botNum) return false
+          if (botLid && clean === botLid) return false
+          return true
+        })
+
+      if (participants.length === 0) return
+
       try {
-        const mencoesTexto = update.participants.map(p => `@${p.split('@')[0].split(':')[0]}`).join(', ')
+        const mencoesTexto = participants.map(p => `@${p.split('@')[0].split(':')[0]}`).join(', ')
 
         const texto = [
           `${mencoesTexto}`,
@@ -63,9 +85,9 @@ module.exports = async (sock, update) => {
 
         let profilePic = null
         try {
-          if (update.participants.length === 1) {
+          if (participants.length === 1) {
             try {
-              profilePic = await sock.profilePictureUrl(update.participants[0], 'image')
+              profilePic = await sock.profilePictureUrl(participants[0], 'image')
             } catch {
               profilePic = null
             }
@@ -81,15 +103,23 @@ module.exports = async (sock, update) => {
         } catch { }
 
         if (profilePic) {
-          await sock.sendMessage(groupId, {
-            image: { url: profilePic },
-            caption: texto,
-            mentions: update.participants
-          })
+          try {
+            await sock.sendMessage(groupId, {
+              image: { url: profilePic },
+              caption: texto,
+              mentions: participants
+            })
+          } catch (imgErr) {
+            console.warn(`[BEMVINDO] Falha ao enviar imagem no grupo ${groupId}, enviando só texto:`, imgErr.message)
+            await sock.sendMessage(groupId, {
+              text: texto,
+              mentions: participants
+            })
+          }
         } else {
           await sock.sendMessage(groupId, {
             text: texto,
-            mentions: update.participants
+            mentions: participants
           })
         }
         console.log(`[BEMVINDO] Mensagem enviada com sucesso no grupo ${groupId}`)

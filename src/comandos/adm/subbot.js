@@ -440,6 +440,18 @@ module.exports = async (sock, msg, from, sender, text) => {
       return true
     }
 
+    const checkVinculo = subbotManager.podeVincularGrupo(numLimpo, gid)
+    if (!checkVinculo.ok) {
+      await sock.sendMessage(from, {
+        text: cardGhost('VÍNCULO NÃO PERMITIDO', [
+          ['⛔', `*${checkVinculo.erro}*`],
+          ['📱', `*Sub-Bot:* +${numLimpo}`],
+          ['💡', `Vincule este sub-bot em outro grupo usando \`${prefix}subbot vincular\`.`]
+        ])
+      }, { quoted: msg })
+      return true
+    }
+
     subbotManager.vincularGrupo(numLimpo, gid)
     await sock.sendMessage(from, {
       text: [
@@ -700,8 +712,9 @@ async function executarConexaoSubbot(sock, msg, from, sender, rawNumber, prefix)
       },
       onConnected: async (num) => {
         try {
+          const avisoOutroGrupo = from.endsWith('@g.us') ? '1. Adicione o número a outro grupo (não neste)' : '1. Adicione o número ao grupo'
           await sock.sendMessage(from, {
-            text: cardGhost('SUB-BOT CONECTADO COM SUCESSO', [['📱', `*Número Conectado:* +${num}`], ['🟢', '*Status:* ONLINE'], ['🔗', 'Ainda não atende nenhum grupo.'], null, ['💡', '*Para ativar num grupo:*'], '1. Adicione o número ao grupo', `2. No grupo envie ${prefix}subbot vincular`, `Ou daqui: ${prefix}subbot vincular <link do grupo>`])
+            text: cardGhost('SUB-BOT CONECTADO COM SUCESSO', [['📱', `*Número Conectado:* +${num}`], ['🟢', '*Status:* ONLINE'], ['🔗', 'Ainda não atende nenhum grupo.'], null, ['💡', '*Para ativar num grupo:*'], avisoOutroGrupo, `2. No grupo envie ${prefix}subbot vincular`, `Ou daqui: ${prefix}subbot vincular <link do grupo>`])
           })
         } catch {}
       },

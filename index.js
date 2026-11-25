@@ -368,6 +368,96 @@ async function processarMensagemIndividual(sock, msg) {
   }
 }
 
+async function processarEventoParticipantesGrupo(sock, update) {
+  try {
+    if (update?.id) {
+      const { invalidateGroupCache } = require('./src/utils/baileys')
+      invalidateGroupCache(update.id)
+    }
+
+    const isPrimarySock = sock === global.primarySocket
+    const configManager = require('./src/utils/configManager')
+
+    if (isPrimarySock && update?.id) {
+      global.primaryGroups.add(update.id)
+      if (global.participatingGroups) {
+        const botId = sock.user?.id ? sock.user.id.split('@')[0].split(':')[0] : ''
+        if (update.action === 'remove' && Array.isArray(update.participants)) {
+          const foiRemovido = update.participants.some(p => {
+            const pJid = typeof p === 'string' ? p : (p?.id || p?.jid || '')
+            return pJid.split('@')[0].split(':')[0] === botId
+          })
+          if (foiRemovido) {
+            global.participatingGroups.delete(update.id)
+            if (global.mapaGrupos) global.mapaGrupos = null
+          }
+        } else if (update.action === 'add' && Array.isArray(update.participants)) {
+          const foiAdicionado = update.participants.some(p => {
+            const pJid = typeof p === 'string' ? p : (p?.id || p?.jid || '')
+            return pJid.split('@')[0].split(':')[0] === botId
+          })
+          if (foiAdicionado) {
+            global.participatingGroups.add(update.id)
+            if (global.mapaGrupos) global.mapaGrupos = null
+          }
+        }
+      }
+    }
+
+    // Apenas o bot principal sai automaticamente de grupos sem licença ao ser adicionado
+    if (isPrimarySock && update?.action === 'add') {
+      const botNumber = sock.user?.id ? sock.user.id.split(':')[0].split('@')[0] : ''
+      for (const participant of (update.participants || [])) {
+        const pJid = typeof participant === 'string' ? participant : (participant?.id || participant?.jid || '')
+        const participantNumber = pJid.split('@')[0].split(':')[0]
+
+        if (participantNumber === botNumber) {
+          const donoNumber = Array.isArray(config.dono) ? config.dono[0] : config.dono
+          const gCfg = configManager.getGroupEntry(update.id)
+
+          if (!gCfg?.authorized) {
+            await sock.sendMessage(update.id, {
+              text: '❌ *Grupo não autorizado!*\n\nApenas o dono do bot pode me adicionar em grupos.\n\nContato: wa.me/' + donoNumber
+            })
+            setTimeout(async () => {
+              try { await sock.groupLeave(update.id) } catch {}
+            }, 2000)
+            return
+          }
+        }
+      }
+    }
+
+    // Se o grupo tem sub-bot ativo e online, quem processa os eventos de grupo é o sub-bot (evita duplicação)
+    if (isPrimarySock && update?.id && subbotManager.temSubbotAtivoNoGrupo(update.id)) {
+      return
+    }
+
+    const eventosGrupo = require('./src/middlewares/eventosGrupo')
+    await eventosGrupo(sock, update)
+
+    if (update?.action === 'add' && Array.isArray(update.participants) && update.participants.length > 0) {
+      try {
+        const { registrarParticipanteAdicionado } = require('./src/middlewares/antibot')
+        for (const p of update.participants) {
+          const pJid = typeof p === 'string' ? p : (p?.id || p?.jid || '')
+          if (pJid) registrarParticipanteAdicionado(update.id, pJid, update.author)
+        }
+      } catch {}
+    }
+
+    const anticoncorrenciaAtivo = require('./src/middlewares/anticoncorrenciaAtivo')
+    await anticoncorrenciaAtivo(sock, update)
+
+    const antigringoAtivo = require('./src/middlewares/antigringoAtivo')
+    await antigringoAtivo(sock, update)
+
+    await bemvindo(sock, update)
+  } catch (e) {
+    console.error("Erro no middleware de grupo:", e)
+  }
+}
+
 async function connectSocket() {
   const sessionFolder = 'session'
 
@@ -649,6 +739,7 @@ async function connectSocket() {
   })
 
   subbotManager.setProcessarMensagemFn(processarMensagemIndividual)
+  subbotManager.setProcessarEventoGrupoFn(processarEventoParticipantesGrupo)
 
   sock.ev.on("messages.upsert", async (chatUpdate) => {
     try {
@@ -691,33 +782,7 @@ async function connectSocket() {
   })
 
   sock.ev.on("group-participants.update", (update) => {
-    try {
-      if (update && update.id) {
-        global.primaryGroups.add(update.id)
-        if (global.participatingGroups) {
-          const botId = sock.user?.id ? sock.user.id.split('@')[0].split(':')[0] : ''
-          if (update.action === 'remove' && Array.isArray(update.participants)) {
-            const foiRemovido = update.participants.some(p => {
-              const pNum = String(p).split('@')[0].split(':')[0]
-              return pNum === botId
-            })
-            if (foiRemovido) {
-              global.participatingGroups.delete(update.id)
-              if (global.mapaGrupos) global.mapaGrupos = null
-            }
-          } else if (update.action === 'add' && Array.isArray(update.participants)) {
-            const foiAdicionado = update.participants.some(p => {
-              const pNum = String(p).split('@')[0].split(':')[0]
-              return pNum === botId
-            })
-            if (foiAdicionado) {
-              global.participatingGroups.add(update.id)
-              if (global.mapaGrupos) global.mapaGrupos = null
-            }
-          }
-        }
-      }
-    } catch {}
+    return processarEventoParticipantesGrupo(sock, update)
   })
 
   const configManager = require('./src/utils/configManager')
@@ -837,59 +902,6 @@ async function connectSocket() {
     inicializarRelogioMocambique()
   }
 
-  sock.ev.on("group-participants.update", async (update) => {
-    try {
-      if (update?.id) {
-        const { invalidateGroupCache } = require('./src/utils/baileys')
-        invalidateGroupCache(update.id)
-      }
-
-      if (update.action === 'add') {
-        const botNumber = sock.user?.id ? sock.user.id.split(':')[0].split('@')[0] : ''
-        for (const participant of update.participants) {
-          const participantNumber = participant.split('@')[0].split(':')[0]
-
-          if (participantNumber === botNumber) {
-            const donoNumber = Array.isArray(config.dono) ? config.dono[0] : config.dono
-            const groupConfig = configManager.loadGroupConfig()
-
-            if (!groupConfig[update.id]?.authorized) {
-              await sock.sendMessage(update.id, {
-                text: '❌ *Grupo não autorizado!*\n\nApenas o dono do bot pode me adicionar em grupos.\n\nContato: wa.me/' + donoNumber
-              })
-              setTimeout(async () => {
-                try { await sock.groupLeave(update.id) } catch {}
-              }, 2000)
-              return
-            }
-          }
-        }
-      }
-
-      const eventosGrupo = require('./src/middlewares/eventosGrupo')
-      await eventosGrupo(sock, update)
-
-      if (update.action === 'add' && update.participants && update.participants.length > 0) {
-        try {
-          const { registrarParticipanteAdicionado } = require('./src/middlewares/antibot')
-          for (const p of update.participants) {
-            registrarParticipanteAdicionado(update.id, p, update.author)
-          }
-        } catch {}
-      }
-
-      const anticoncorrenciaAtivo = require('./src/middlewares/anticoncorrenciaAtivo')
-      await anticoncorrenciaAtivo(sock, update)
-
-      const antigringoAtivo = require('./src/middlewares/antigringoAtivo')
-      await antigringoAtivo(sock, update)
-
-      await bemvindo(sock, update)
-    } catch (e) {
-      console.error("Erro no middleware de grupo:", e)
-    }
-  })
-
   sock.ev.on("creds.update", saveCreds)
 }
 
@@ -942,7 +954,7 @@ async function iniciarBots() {
 
   // Inicializar sub-bots salvos automaticamente em segundo plano
   setTimeout(() => {
-    subbotManager.iniciarSubbotsExistentes(processarMensagemIndividual).catch(err => {
+    subbotManager.iniciarSubbotsExistentes(processarMensagemIndividual, processarEventoParticipantesGrupo).catch(err => {
       console.error('[START] Erro ao restaurar sub-bots:', err.message)
     })
   }, 4000)

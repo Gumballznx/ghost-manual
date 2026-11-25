@@ -103,6 +103,7 @@ async function handleQrCommand(sock, msg, from, sender, text) {
           lastQrKey = null
         }
         try {
+          const passo1 = isGroup ? `Adicione o número +${num} a outro grupo (não neste)` : `Adicione o número +${num} ao grupo`
           await sock.sendMessage(from, {
             text: [
               '╭┈⊰ 👻 『 *SUB-BOT CONECTADO COM SUCESSO* 』',
@@ -110,7 +111,7 @@ async function handleQrCommand(sock, msg, from, sender, text) {
               `┊•.̇𖥨֗📱⭟ *Número Conectado:* +${num}`,
               '┊•.̇𖥨֗🟢⭟ *Status:* ONLINE',
               '┊•.̇𖥨֗🔗⭟ Ainda não atende nenhum grupo.',
-              `┊•.̇𖥨֗1️⃣⭟ Adicione o número +${num} ao grupo`,
+              `┊•.̇𖥨֗1️⃣⭟ ${passo1}`,
               `┊•.̇𖥨֗2️⃣⭟ No grupo envie ${prefix}subbot vincular`,
               `┊•.̇𖥨֗🔗⭟ Ou daqui: ${prefix}subbot vincular <link do grupo>`,
               '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'

@@ -164,7 +164,14 @@ module.exports = async (sock, msg, from, sender, text) => {
         }
 
         groups[from].bemvindo = true
+        groups[from].boasVindas = true
         saveGroupConfig(groups)
+        try {
+            const { bemvindoStore } = require('../../utils/firebaseDataLayer')
+            const bv = bemvindoStore.loadSync() || {}
+            bv[from] = true
+            bemvindoStore.save(bv, true)
+        } catch {}
         await sock.sendMessage(from, {
             text: '👋 *Boas-vindas ativado!*\n\nNovos membros receberão mensagem de boas-vindas.'
         }, { quoted: msg })
@@ -185,7 +192,14 @@ module.exports = async (sock, msg, from, sender, text) => {
         }
 
         groups[from].bemvindo = false
+        groups[from].boasVindas = false
         saveGroupConfig(groups)
+        try {
+            const { bemvindoStore } = require('../../utils/firebaseDataLayer')
+            const bv = bemvindoStore.loadSync() || {}
+            bv[from] = false
+            bemvindoStore.save(bv, true)
+        } catch {}
         await sock.sendMessage(from, {
             text: '👋 *Boas-vindas desativado!*'
         }, { quoted: msg })

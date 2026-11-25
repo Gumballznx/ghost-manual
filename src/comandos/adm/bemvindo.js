@@ -45,14 +45,21 @@ module.exports = async (sock, msg, from, sender, text) => {
 
   const cfg = loadConfig()
   cfg[from] = isLigado
-  saveConfig(cfg)
+  bemvindoStore.save(cfg, true)
 
   try {
     const groupConfig = configManager.loadGroupConfig()
-    if (!groupConfig[from]) groupConfig[from] = {}
+    const dotKey = from.replace(/\./g, '___dot___')
+    if (!groupConfig[from]) {
+      groupConfig[from] = groupConfig[dotKey] ? { ...groupConfig[dotKey] } : {}
+    }
     groupConfig[from].bemvindo = isLigado
     groupConfig[from].boasVindas = isLigado
-    configManager.saveGroupConfig(groupConfig)
+    if (groupConfig[dotKey]) {
+      groupConfig[dotKey].bemvindo = isLigado
+      groupConfig[dotKey].boasVindas = isLigado
+    }
+    configManager.saveGroupConfig(groupConfig, true)
   } catch (err) {}
 
   const status = isLigado ? '🟢 *ATIVADO*' : '🔴 *DESATIVADO*'

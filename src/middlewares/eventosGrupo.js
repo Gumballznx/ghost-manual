@@ -16,7 +16,7 @@ function getDataMocambique() {
 
 function grupoAutorizado(groupId) {
     const groups = loadGroupConfig()
-    const grupoInfo = groups[groupId]
+    const grupoInfo = configManager.getGroupEntry(groupId, groups)
 
     if (!grupoInfo?.authorized) return false
 
@@ -52,7 +52,7 @@ module.exports = async (sock, update) => {
                 case 'remove':
 
                     const groups = loadGroupConfig()
-                    const adeusAtivo = groups[groupId]?.adeus
+                    const adeusAtivo = Boolean(configManager.getGroupEntry(groupId, groups)?.adeus)
 
                     if (!adeusAtivo) break
 
@@ -75,8 +75,7 @@ module.exports = async (sock, update) => {
 
                 case 'promote': {
                     const groups = loadGroupConfig()
-                    const safeKey = groupId.replace(/\./g, '___dot___')
-                    const x9Ativo = Boolean(groups[groupId]?.x9 ?? groups[safeKey]?.x9)
+                    const x9Ativo = Boolean(configManager.getGroupEntry(groupId, groups)?.x9)
 
                     if (!x9Ativo) break
 
@@ -96,8 +95,7 @@ module.exports = async (sock, update) => {
 
                 case 'demote': {
                     const groups = loadGroupConfig()
-                    const safeKey = groupId.replace(/\./g, '___dot___')
-                    const x9Ativo = Boolean(groups[groupId]?.x9 ?? groups[safeKey]?.x9)
+                    const x9Ativo = Boolean(configManager.getGroupEntry(groupId, groups)?.x9)
 
                     if (x9Ativo) {
                         if (author) {
