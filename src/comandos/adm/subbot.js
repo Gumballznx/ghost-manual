@@ -4,6 +4,25 @@ const { isLeaderCheck, isSubdonoCheck } = require('../../utils/baileys')
 const subbotManager = require('../../bot/subbotManager')
 const { cardGhost } = require('../../utils/cardGhost')
 
+/**
+ * Dono de uma ligação (quem a conectou): "@258..." com menção. O registo guarda quem conectou em
+ * criadoPor (às vezes como LID do WhatsApp: tenta o número real).
+ */
+function donoDoSubbot(sb, mencoes) {
+  const bruto = sb && sb.criadoPor ? String(sb.criadoPor) : ''
+  if (!bruto) return '_desconhecido_'
+  let numero = bruto.split('@')[0].split(':')[0].replace(/\D/g, '')
+  try {
+    const real = require('../../bot/core').buscarNumero(numero)
+    const limpo = real ? String(real).split('@')[0].split(':')[0].replace(/\D/g, '') : ''
+    if (limpo && limpo.length >= 9 && limpo.length <= 13) numero = limpo
+  } catch {}
+  if (!numero) return '_desconhecido_'
+  const jid = bruto.endsWith('@lid') && numero === bruto.split('@')[0].split(':')[0] ? bruto : `${numero}@s.whatsapp.net`
+  if (Array.isArray(mencoes) && !mencoes.includes(jid)) mencoes.push(jid)
+  return `@${numero}`
+}
+
 module.exports = async (sock, msg, from, sender, text) => {
   const prefix = config.prefix || '.'
   const trimmed = (text || '').trim()
@@ -309,6 +328,7 @@ module.exports = async (sock, msg, from, sender, text) => {
       return true
     }
 
+    const mencoesDonos = []
     const linhas = [
       `╭┈⊰ 👻 『 *${isOwnerOrSubdono ? 'SUB-BOTS ONLINE' : 'SEUS SUB-BOTS ONLINE'}* 』`,
       '┊'
@@ -319,6 +339,7 @@ module.exports = async (sock, msg, from, sender, text) => {
       const qtdGrupos = sb.grupos ? sb.grupos.length : 0
       linhas.push(`┊•.̇𖥨֗📱⭟ *Sub-Bot #${i + 1}:* ${subbotManager.rotulo(sb.numero)}`)
       linhas.push(`┊      Status: *🟢 Online*`)
+      linhas.push(`┊      Dono: ${donoDoSubbot(sb, mencoesDonos)}`)
       linhas.push(`┊      Grupos atendidos: *${qtdGrupos}*`)
       linhas.push('┊')
     }
@@ -335,7 +356,7 @@ module.exports = async (sock, msg, from, sender, text) => {
     }
     linhas.push('╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯')
 
-    await sock.sendMessage(from, { text: linhas.join('\n') }, { quoted: msg })
+    await sock.sendMessage(from, { text: linhas.join('\n'), mentions: mencoesDonos }, { quoted: msg })
     return true
   }
 
