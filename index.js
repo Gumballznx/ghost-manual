@@ -452,12 +452,16 @@ async function processarEventoParticipantesGrupo(sock, update) {
     const antigringoAtivo = require('./src/middlewares/antigringoAtivo')
     const removidosGringo = await antigringoAtivo(sock, update)
 
+    const antiDuplicataAtivo = require('./src/middlewares/antiDuplicataAtivo')
+    const removidosDuplicata = await antiDuplicataAtivo(sock, update)
+
     let updateBemvindo = update
     if (update.action === 'add' && Array.isArray(update.participants)) {
       const extrairJid = (p) => (typeof p === 'string' ? p : (p?.id || p?.jid || p?.phoneNumber || ''))
       const banidosRaw = [
         ...(Array.isArray(removidosConc) ? removidosConc : []),
-        ...(Array.isArray(removidosGringo) ? removidosGringo : [])
+        ...(Array.isArray(removidosGringo) ? removidosGringo : []),
+        ...(Array.isArray(removidosDuplicata) ? removidosDuplicata : [])
       ]
       if (banidosRaw.length > 0) {
         const banidosSet = new Set()
