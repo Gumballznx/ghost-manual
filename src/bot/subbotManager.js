@@ -469,6 +469,7 @@ class SubbotManager {
     const queue = new MessageQueue(2, 600) // Rate-limiting leve anti-ban
 
     const sock = makeWASocket({
+      getMessage: require('../utils/mensagensEnviadas').getMessage,
       version,
       logger: pino({ level: 'silent' }),
       printQRInTerminal: false,
@@ -484,6 +485,7 @@ class SubbotManager {
       defaultQueryTimeoutMs: 60000,
       cachedGroupMetadata: async (jid) => getGroupMetadataCached(sock, jid)
     })
+    require('../utils/mensagensEnviadas').registarSocket(sock)
 
     const subbotEntry = {
       sock,
@@ -941,6 +943,7 @@ class SubbotManager {
     const { version } = await fetchLatestBaileysVersion()
 
     const sock = makeWASocket({
+      getMessage: require('../utils/mensagensEnviadas').getMessage,
       version,
       logger: pino({ level: 'silent' }),
       printQRInTerminal: false,
@@ -953,6 +956,7 @@ class SubbotManager {
       defaultQueryTimeoutMs: 60000,
       cachedGroupMetadata: async (jid) => getGroupMetadataCached(sock, jid)
     })
+    require('../utils/mensagensEnviadas').registarSocket(sock)
 
     global.primarySocket = sock
     global.sock = sock
