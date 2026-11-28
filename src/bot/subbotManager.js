@@ -724,6 +724,17 @@ class SubbotManager {
             }
           }
 
+          // Avisa quem criou a ligação (e o grupo onde foi pedida) para religar
+          if (avisarGrupos) {
+            const reg = this.dados.subbots[num] || {}
+            const mainSock = global.primarySocket || global.sock
+            const texto = `⚠️ *SUB-BOT DESLOGADO*\n\nO WhatsApp terminou a sessão do sub-bot *${this.rotulo(num)}*. Os comandos deixam de ser atendidos até religar.\n\n🔄 Para religar: no celular do sub-bot, apague este aparelho em *Aparelhos conectados* (se ainda aparecer) e envie *.conect ${num}* ou *.qr*. Depois, no grupo, envie *.subbot vincular*.`
+            const destinos = new Set()
+            if (reg.criadoPor) destinos.add(String(reg.criadoPor).includes('@') ? reg.criadoPor : `${reg.criadoPor}@s.whatsapp.net`)
+            if (reg.grupoConexao) destinos.add(reg.grupoConexao)
+            if (mainSock) for (const d of destinos) { try { mainSock.sendMessage(d, { text: texto }).catch(() => {}) } catch {} }
+          }
+
           // Deslogado pelo WhatsApp: sai da lista e da VPS (pasta já apagada acima)
           delete this.dados.subbots[num]
           this.salvarDados()
@@ -765,8 +776,18 @@ class SubbotManager {
             // Exceção: o comando de vínculo, para o dono poder vincular um grupo onde
             // só o sub-bot está (sem precisar do bot principal no grupo).
             const m = msg?.message || {}
-            const t = (m.conversation || m.extendedTextMessage?.text || '').trim()
+            const bruto = m.conversation || m.extendedTextMessage?.text || ''
+            // Marcas invisíveis (LRM, zero-width...) à frente não podem esconder o comando
+            const t = bruto.replace(/[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g, '').trim()
+            const parece = /subbot/i.test(t)
+            if (parece || !msg?.message) {
+              const quem = String(msg?.key?.participant || '').replace(/\D/g, '').slice(-3)
+              console.log(`[SUBBOT ${num}] [GRUPO NAO VINCULADO ${new Date().toISOString()}] ${jid.slice(0, 12)} de ***${quem} tipo=${Object.keys(m)[0] || 'SEM-CONTEUDO(nao decifrada)'} texto=${JSON.stringify(bruto.slice(0, 40))} aceito=${/^\S\s*subbot\s+(vincular|associar)\b/i.test(t)}`)
+            }
             if (!/^\S\s*subbot\s+(vincular|associar)\b/i.test(t)) continue
+            // Entrega o texto já limpo ao processador
+            if (m.conversation) m.conversation = t
+            else if (m.extendedTextMessage) m.extendedTextMessage.text = t
           }
           try {
             await this.processarMensagemFn(sock, msg)
