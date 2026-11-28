@@ -596,3 +596,4 @@ module.exports = async function (sock, msg, from, sender, text) {
 module.exports.numerosParaAnticoncorrencia = numerosParaAnticoncorrencia
 module.exports.alvosSeguros = alvosSeguros
 module.exports.removerEmBloco = removerEmBloco
+module.exports.numerosDeBots = numerosDeBots

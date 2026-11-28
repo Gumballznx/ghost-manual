@@ -859,6 +859,11 @@ module.exports = async function (sock, msg) {
     if (await historicoCommand(sock, msg, from, sender, text)) return
     if (await antigringoCommand(sock, msg, from, sender, text)) return
     if (await concorrentesCommand(sock, msg, from, sender, text)) return
+
+    // .duplicados | .banduplicados | .antiduplicata on|off — membros que estão noutro grupo do mesmo sub-bot
+    if (/^[.!/](?:duplicados|duplicadas|duplicatas|mapearduplicados|banduplicados|banirduplicados|banduplicadas|antiduplicatas?|antiduplicado)\b/i.test(text || '')) {
+      if (await require('../comandos/adm/antiDuplicataCmd')(sock, msg, from, sender, text)) return
+    }
     if (await detectorCommand(sock, msg, from, sender, text)) return
     if (await antibotCmd(sock, msg, from, sender, text)) return
     if (await x9Command(sock, msg, from, sender, text)) return
