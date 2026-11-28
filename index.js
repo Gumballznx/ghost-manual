@@ -23,6 +23,7 @@ const antilink = require('./src/middlewares/antilink')
 const { verificarAutoUpdate } = require('./src/bot/autoUpdate')
 const { publicarPresenca } = require('./src/utils/clusterPresenca')
 const subbotManager = require('./src/bot/subbotManager')
+const botMae = require('./src/utils/botMae')
 
 const MessageQueue = require('./src/utils/queue')
 const messageQueue = new MessageQueue(5, 30)
@@ -304,6 +305,14 @@ async function processarMensagemIndividual(sock, msg) {
     if (sock === global.primarySocket && subbotManager.temSubbotAtivoNoGrupo(remoteJid)) {
       return
     }
+
+    // Conexão mãe em grupos: só menus, ligação de sub-bots e apoio, e só em grupos
+    // autorizados com ".botmae autorizar". O resto fica para os sub-bots.
+    if (sock === global.primarySocket) {
+      const m = msg.message || {}
+      const textoMae = m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption || m.documentMessage?.caption || ''
+      if (botMae.mensagemBloqueada(remoteJid, textoMae)) return
+    }
   }
 
   const msgId = msg.key?.id
@@ -482,6 +491,8 @@ async function processarEventoParticipantesGrupo(sock, update) {
       }
     }
 
+    // Bem-vindo da conexão mãe só em grupos autorizados; os sub-bots mantêm o seu
+    if (sock === global.primarySocket && !botMae.grupoAutorizado(update?.id)) return
     await bemvindo(sock, updateBemvindo)
   } catch (e) {
     console.error("Erro no middleware de grupo:", e)
