@@ -670,6 +670,19 @@ async function listarGruposSessoes(sock, msg, from, sender, args, isOwnerOrSubdo
   return true
 }
 
+function avisoLigacaoUnica(prefix, outra) {
+  return [
+    '╭┈⊰ 👻 『 *JÁ TEM UMA LIGAÇÃO* 』',
+    '┊',
+    `┊•.̇𖥨֗📱⭟ *A sua ligação:* +${String(outra.numero).replace(/\D/g, '')}`,
+    '┊•.̇𖥨֗⛔⭟ Cada pessoa só pode ter *1 ligação* (sub-bot).',
+    '┊',
+    `┊•.̇𖥨֗💡⭟ Para ligar outro número, remova primeiro a atual:`,
+    `┊      \`${prefix}subbot del <nº>\` (o nº do \`${prefix}subbots\`)`,
+    '╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯'
+  ].join('\n')
+}
+
 async function executarConexaoSubbot(sock, msg, from, sender, rawNumber, prefix) {
   const cleanNumber = String(rawNumber).replace(/\D/g, '')
   const validacao = subbotManager.validarNumeroComDDI(cleanNumber)
@@ -678,6 +691,15 @@ async function executarConexaoSubbot(sock, msg, from, sender, rawNumber, prefix)
       text: cardGhost('ERRO', [['❌', `*${validacao.erro}*`], ['💡', `Exemplo: \`${prefix}conect 258841234567\``]])
     }, { quoted: msg })
     return true
+  }
+
+  // Só 1 ligação por pessoa (o dono e os subdonos podem ligar para clientes).
+  if (!(isLeaderCheck(sender, msg) || isSubdonoCheck(sender))) {
+    const outra = subbotManager.outraLigacaoDoUsuario(sender, cleanNumber)
+    if (outra) {
+      await sock.sendMessage(from, { text: avisoLigacaoUnica(prefix, outra) }, { quoted: msg })
+      return true
+    }
   }
 
   const existing = subbotManager.getSubbotPorNumero(cleanNumber)
@@ -875,3 +897,4 @@ async function enviarLinksGrupos(sock, msg, from, sender, ref, isOwnerOrSubdono,
 }
 
 module.exports.executarRemoverSubbot = executarRemoverSubbot
+module.exports.avisoLigacaoUnica = avisoLigacaoUnica

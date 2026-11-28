@@ -282,6 +282,20 @@ class SubbotManager {
     return resultado
   }
 
+  /**
+   * Só 1 ligação por pessoa: a ligação que `sender` já tem com OUTRO número (ou null).
+   * Conta as registadas (online ou não), porque as desligadas voltam a ligar sozinhas.
+   */
+  outraLigacaoDoUsuario(sender, numeroNovo = '') {
+    const novo = String(numeroNovo || '').replace(/\D/g, '')
+    const minhas = this.getSubbotsDoUsuario(sender)
+      .filter(sb => {
+        const num = String(sb.numero || '').replace(/\D/g, '')
+        return num && !String(sb.numero || '').startsWith('temp_') && num !== novo
+      })
+    return minhas[0] || null
+  }
+
   getSubbotDoGrupo(groupId) {
     const num = this.groupToSubbot.get(groupId)
     if (!num) return null

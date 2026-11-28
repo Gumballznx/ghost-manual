@@ -38,6 +38,17 @@ async function handleQrCommand(sock, msg, from, sender, text) {
     return true
   }
 
+  // Só 1 ligação por pessoa (o dono e os subdonos podem ligar para clientes).
+  const { isLeaderCheck, isSubdonoCheck } = require('../../utils/baileys')
+  if (!(isLeaderCheck(sender, msg) || isSubdonoCheck(sender))) {
+    const outra = subbotManager.outraLigacaoDoUsuario(sender, (parts[1] || '').replace(/\D/g, ''))
+    if (outra) {
+      const { avisoLigacaoUnica } = require('./subbot')
+      await sock.sendMessage(from, { text: avisoLigacaoUnica(prefix, outra) }, { quoted: msg })
+      return true
+    }
+  }
+
   const rawIdentificador = parts[1] ? parts[1].trim() : ''
   const isGroup = from.endsWith('@g.us')
 
