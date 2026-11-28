@@ -771,6 +771,13 @@ class SubbotManager {
           // Em grupo, o sub-bot só atende onde foi vinculado; nos demais quem responde
           // é o bot principal (evita respostas duplicadas e atendimento não autorizado).
           const jid = msg?.key?.remoteJid || ''
+          // Mensagem que o sub-bot não conseguiu decifrar: regista o motivo exato (stub do Baileys)
+          if (!msg?.message) {
+            const quem = String(msg?.key?.participant || msg?.key?.remoteJid || '').replace(/\D/g, '').slice(-3)
+            const motivo = (msg?.messageStubParameters || []).map(x => String(x).slice(0, 80)).join(' | ')
+            console.log(`[SUBBOT ${num}] [NAO DECIFRADA ${new Date().toISOString()}] chat=${jid.slice(0, 12)} de=***${quem} fromMe=${!!msg?.key?.fromMe} stubType=${msg?.messageStubType ?? '-'} motivo=${motivo || '-'}`)
+            continue
+          }
           if (jid.endsWith('@g.us') && this.groupToSubbot.get(jid) !== num) {
             // Exceção: o comando de vínculo, para o dono poder vincular um grupo onde
             // só o sub-bot está (sem precisar do bot principal no grupo).
