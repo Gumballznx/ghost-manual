@@ -724,13 +724,12 @@ class SubbotManager {
             }
           }
 
-          // Avisa quem criou a ligação (e o grupo onde foi pedida) para religar
+          // Avisa só no grupo onde a ligação foi conectada (nunca no PV) para religar
           if (avisarGrupos) {
             const reg = this.dados.subbots[num] || {}
             const mainSock = global.primarySocket || global.sock
             const texto = `⚠️ *SUB-BOT DESLOGADO*\n\nO WhatsApp terminou a sessão do sub-bot *${this.rotulo(num)}*. Os comandos deixam de ser atendidos até religar.\n\n🔄 Para religar: no celular do sub-bot, apague este aparelho em *Aparelhos conectados* (se ainda aparecer) e envie *.conect ${num}* ou *.qr*. Depois, no grupo, envie *.subbot vincular*.`
             const destinos = new Set()
-            if (reg.criadoPor) destinos.add(String(reg.criadoPor).includes('@') ? reg.criadoPor : `${reg.criadoPor}@s.whatsapp.net`)
             if (reg.grupoConexao) destinos.add(reg.grupoConexao)
             if (mainSock) for (const d of destinos) { try { mainSock.sendMessage(d, { text: texto }).catch(() => {}) } catch {} }
           }
