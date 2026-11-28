@@ -101,6 +101,7 @@ async function executarConexaoCli(isQrMode = false) {
   const { version } = await fetchLatestBaileysVersion()
 
   const sock = makeWASocket({
+    getMessage: require('./src/utils/mensagensEnviadas').getMessage,
     version,
     logger: pino({ level: 'silent' }),
     printQRInTerminal: isQrMode,
@@ -111,6 +112,7 @@ async function executarConexaoCli(isQrMode = false) {
     defaultQueryTimeoutMs: 60000,
     keepAliveIntervalMs: 25000
   })
+  require('./src/utils/mensagensEnviadas').registarSocket(sock)
 
   sock.ev.on('creds.update', saveCreds)
 
@@ -311,7 +313,20 @@ async function processarMensagemIndividual(sock, msg) {
     if (sock === global.primarySocket) {
       const m = msg.message || {}
       const textoMae = m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption || m.documentMessage?.caption || ''
-      if (botMae.mensagemBloqueada(remoteJid, textoMae)) return
+      if (botMae.mensagemBloqueada(remoteJid, textoMae)) {
+        // O dono e os subdonos continuam a poder usar todos os comandos na mãe
+        // (gerar licenças, configurar, etc.); só os outros ficam limitados.
+        const { isOwnerCheck, isSubdonoCheck, resolverParticipanteGrupo } = require('./src/utils/baileys')
+        let quem = msg.key?.participant || ''
+        let dono = isOwnerCheck(quem, msg) || isSubdonoCheck(quem)
+        if (!dono && quem.endsWith('@lid')) {
+          try {
+            quem = await resolverParticipanteGrupo(sock, remoteJid, quem)
+            dono = isOwnerCheck(quem, msg) || isSubdonoCheck(quem)
+          } catch {}
+        }
+        if (!dono) return
+      }
     }
   }
 
@@ -561,6 +576,7 @@ async function connectSocket() {
   const { getGroupMetadataCached } = require('./src/utils/baileys')
 
   const sock = makeWASocket({
+    getMessage: require('./src/utils/mensagensEnviadas').getMessage,
     version,
     logger: pino({ level: "silent" }),
     printQRInTerminal: method === '1',
@@ -573,6 +589,7 @@ async function connectSocket() {
     defaultQueryTimeoutMs: 60000,
     cachedGroupMetadata: async (jid) => getGroupMetadataCached(sock, jid)
   })
+  require('./src/utils/mensagensEnviadas').registarSocket(sock)
 
   global.sock = sock
   global.primarySocket = sock
